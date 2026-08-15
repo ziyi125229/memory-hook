@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>记忆外挂</title>
+  <style>
+    :root {
+      --bg: #f4efe8;
+      --bg-2: #ebe4d8;
+      --panel: rgba(255, 252, 248, 0.86);
+      --line: rgba(90, 70, 50, 0.1);
+      --text: #2c261f;
+      --muted: #8a7d6e;
+      --accent: #6b5a46;
+      --accent-soft: #efe6d8;
+      --warn: #b45309;
+      --shadow: 0 10px 30px rgba(80, 60, 40, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", serif;
+      background:
+        radial-gradient(900px 480px at 12% -8%, #fffaf3, transparent 60%),
+        radial-gradient(700px 420px at 100% 8%, #e7ddd0, transparent 55%),
+        linear-gradient(180deg, var(--bg), var(--bg-2));
+      color: var(--text);
+    }
+
+    .wrap {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 56px 20px 96px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 32px;
+      font-weight: 560;
+      letter-spacing: 0.12em;
+    }
+
+    .sub {
+      margin: 0 0 32px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 22px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      min-width: 180px;
+      height: 46px;
+      padding: 0 16px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      font-size: 15px;
+      outline: none;
+    }
+
+    input[type="text"]:focus {
+      border-color: #c4b29a;
+      box-shadow: 0 0 0 4px rgba(196, 178, 154, 0.28);
+    }
+
+    button {
+      height: 46px;
+      padding: 0 18px;
+      border: 0;
+      border-radius: 12px;
+      background: var(--accent);
+      color: #faf6f0;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    button:hover { filter: brightness(1.06); }
+
+    button.secondary {
+      background: #fff;
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+
+    button.listening {
+      background: #7f1d1d;
+      color: #fecaca;
+      border-color: #991b1b;
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    @keyframes pulse {
+      50% { filter: brightness(1.2); }
+    }
+
+    .hint {
+      margin: 12px 0 0;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .error {
+      margin-top: 10px;
+      color: var(--warn);
+      font-size: 13px;
+      min-height: 1.2em;
+    }
+
+    h2 {
+      margin: 40px 0 16px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      color: var(--muted);
+    }
+
+    .timeline {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 12px;
+    }
+
+    .record-card {
+      position: relative;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px 18px 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .record-card .meta {
+      position: absolute;
+      top: 16px;
+      right: 18px;
+      margin: 0;
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0.02em;
+    }
+
+    .item-line {
+      padding-right: 150px;
+      font-size: 15px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      align-items: center;
+    }
+
+    .field {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 13px;
+    }
+
+    .empty {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .search-block {
+      margin-top: 44px;
+    }
+
+    .ok {
+      margin-top: 10px;
+      color: #3f6b4b;
+      font-size: 13px;
+      line-height: 1.6;
+      min-height: 1.2em;
+    }
+
+    .answer-box {
+      margin: 16px 0 8px;
+      padding: 16px 18px;
+      border-radius: 16px;
+      background: #fff;
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+
+    .answer-box strong {
+      font-size: 16px;
+      font-weight: 650;
+    }
+
+    .evidence-label {
+      margin: 12px 0 8px;
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+    }
+
+    .record-card.history {
+      opacity: 0.62;
+    }
+
+    .original {
+      margin-top: 8px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .history-toggle {
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .history-toggle summary {
+      cursor: pointer;
+    }
+      background: none;
+      border: 0;
+      padding: 0;
+      height: auto;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 400;
+      cursor: pointer;
+    }
+
+    @media (max-width: 520px) {
+      .item-line { padding-right: 0; padding-top: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>记忆外挂</h1>
+    <p class="sub">用自然语言记下物品和事情。系统会理解、记住，并在你问起时回答。</p>
+
+    <div class="card">
+      <label for="memory">说点什么，我帮你记住</label>
+      <form id="form" class="row">
+        <input id="memory" type="text" placeholder="例如：我把红色钥匙放到客厅茶几下面的抽屉里了" autocomplete="off" />
+        <button type="submit">记录</button>
+        <button type="button" class="secondary" id="mic">开始录音</button>
+      </form>
+      <p class="hint">随便说一句即可。即使暂时理解不了，也会先把原文记住。</p>
+      <p class="ok" id="ok"></p>
+      <p class="error" id="error"></p>
+    </div>
+
+    <div class="search-block" style="margin-top: 20px;">
+      <h2>问一句</h2>
+      <div class="card">
+        <label for="search">自然语言检索</label>
+        <form id="searchForm" class="row">
+          <input id="search" type="text" placeholder="例如：我的红色钥匙在哪？" autocomplete="off" />
+          <button type="submit">搜索</button>
+        </form>
+        <p class="hint">问「在哪」「借给谁了」「借给别人什么了」。点搜索或回车即可。</p>
+      </div>
+      <div id="answer"></div>
+      <p class="evidence-label" id="evidenceLabel"></p>
+      <ul class="timeline" id="searchResults"></ul>
+      <p class="empty" id="searchEmpty"></p>
+    </div>
+
+    <h2>时间轴</h2>
+    <ul class="timeline" id="timeline"></ul>
+    <p class="empty" id="empty">还没有记录。</p>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "memory-hook-v15";
+    const ROOMS = ["客厅", "卧室", "玄关", "厨房", "书房", "卫生间", "阳台", "餐厅"];
+    const FURNITURE = ["床头柜", "电视柜", "玄关柜", "茶几", "书桌", "鞋柜", "沙发", "柜子", "桌子", "床", "抽屉"];
+    const SYN_GROUPS = [
+      ["耳机", "airpods", "airpod", "earpods", "earphone"],
+      ["充电宝", "移动电源"],
+      ["钥匙", "钥匙串"],
+    ];
+
+    const form = document.getElementById("form");
+    const input = document.getElementById("memory");
+    const errorEl = document.getElementById("error");
+    const okEl = document.getElementById("ok");
+    const timeline = document.getElementById("timeline");
+    const empty = document.getElementById("empty");
+    const micBtn = document.getElementById("mic");
+    const searchInput = document.getElementById("search");
+    const searchForm = document.getElementById("searchForm");
+    const searchResults = document.getElementById("searchResults");
+    const searchEmpty = document.getElementById("searchEmpty");
+    const answerEl = document.getElementById("answer");
+    const evidenceLabel = document.getElementById("evidenceLabel");
+
+    let memories = loadMemories();
+
+    function uid() {
+      return "m_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+    }
+
+    function loadMemories() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return [];
+        const data = JSON.parse(raw);
+        return Array.isArray(data) ? data : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function persist() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(memories));
+    }
+
+    function cleanText(text) {
+      return String(text || "")
+        .trim()
+        .replace(/[。！？!?，,]/g, (ch) => (ch === "，" || ch === "," ? "，" : ""));
+    }
+
+    function stripFillers(s) {
+      return s
+        .replace(/放到了/g, "放到")
+        .replace(/放在了/g, "放在")
+        .replace(/拿到了/g, "拿到")
+        .replace(/我借给/g, "借给")
+        .replace(/顺手把/g, "把")
+        .replace(/刚才又把/g, "把")
+        .replace(/后来(我)?把/g, "把")
+        .replace(/^(昨晚|昨天晚上|昨天|今天)?(回家后)?[，,\s]*/g, "")
+        .replace(/^(我刚刚|刚刚|我刚才|刚才|后来|我)/g, "")
+        .replace(/^的/, "")
+        .replace(/那串/g, "")
+        .trim();
+    }
+
+    const COLORS = ["黑色", "银色", "红色", "白色", "金色", "蓝色", "绿色", "灰色"];
+    const VAGUE_OBJECT = /^(它|这个|那个|东西|那个东西|这个东西|某[个件]东西)$/;
+    const PLACE_VERB = String.raw`(?:扔(?:到|在)?|塞(?:到|在)?|搁(?:到|在)?|拿到|拿去|又放到|又放在|放到|放在|放到|放)`;
+
+    function cleanObject(s) {
+      return String(s || "")
+        .replace(/昨天(晚上)?买的/g, "")
+        .replace(/买的/g, "")
+        .replace(/那[个件]/g, "")
+        .replace(/这[个件]/g, "")
+        .replace(/刚刚|顺手|刚才|后来/g, "")
+        .replace(/都$/g, "")
+        .replace(/我的/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function splitObjects(raw) {
+      const s = cleanObject(raw).replace(/都$/g, "").trim();
+      if (!s) return [];
+      if (/[和跟与]/.test(s)) {
+        return s.split(/[和跟与]/).map((x) => cleanObject(x)).filter(Boolean);
+      }
+      return [s];
+    }
+
+    function isVagueObject(s) {
+      const t = cleanObject(s).replace(/\s/g, "");
+      if (!t) return true;
+      if (VAGUE_OBJECT.test(t)) return true;
+      if (/^(东西应该还|那个东西|这个东西)$/.test(t)) return true;
+      return false;
+    }
+
+    function isVagueLocation(s) {
+      const t = String(s || "").trim().replace(/^的/, "");
+      if (!t || t === "地方") return true;
+      return /(昨天|以前|原来|某个|老的?).{0,8}地方/.test(s) || /某个地方/.test(t);
+    }
+
+    function truncateLocation(raw) {
+      let s = String(raw || "").trim();
+      s = s.split(/免得|以免|不然|所以|于是/)[0];
+      s = s.replace(/那个/g, "的");
+      s = s.replace(/里面/g, "");
+      s = s.replace(/[里上中了]+$/g, "");
+      s = s.replace(/[，,。]+$/g, "");
+      return s.trim();
+    }
+
+    function colorOf(s) {
+      const t = String(s || "");
+      return COLORS.find((c) => t.includes(c)) || null;
+    }
+
+    function parseLocation(raw) {
+      if (!raw) return null;
+      const cut = truncateLocation(raw);
+      if (!cut || isVagueLocation(cut)) return { raw: cut, hierarchy: [], vague: isVagueLocation(cut || raw) };
+      let s = cut;
+      const hierarchy = [];
+      const furn = [...FURNITURE].sort((a, b) => b.length - a.length);
+      const rooms = [...ROOMS].sort((a, b) => b.length - a.length);
+      for (const item of furn) {
+        if (s.includes(item)) {
+          hierarchy.push(item);
+          s = s.replace(item, "");
+        }
+      }
+      for (const room of rooms) {
+        if (s.includes(room)) {
+          hierarchy.unshift(room);
+          s = s.replace(room, "");
+        }
+      }
+      s = s.replace(/^[的]/, "").replace(/下面|下方/g, (m, _i, str) => (str.includes("抽屉") ? "" : m)).trim();
+      s = s.replace(/^的/, "").replace(/[上里中了]/g, " ").replace(/\s+/g, "").trim();
+      if (/下面|下方/.test(cut) && /抽屉/.test(cut) && !hierarchy.some((h) => h.includes("抽屉"))) {
+        const drawer = (cut.match(/(右边|最右边)?第?[一二三四五六七八九十0-9]*[层个]?抽屉/) || ["抽屉"])[0];
+        hierarchy.push(drawer);
+      } else if (s) {
+        hierarchy.push(s.replace(/^的/, ""));
+      }
+      if (!hierarchy.length) hierarchy.push(cut);
+      return { raw: cut, hierarchy, vague: false };
+    }
+
+    function locationText(loc) {
+      if (!loc) return "";
+      if (loc.hierarchy && loc.hierarchy.length) return loc.hierarchy.join("");
+      return loc.raw || "";
+    }
+
+    function locationPath(loc) {
+      if (!loc) return "";
+      if (loc.hierarchy && loc.hierarchy.length) return loc.hierarchy.join(" > ");
+      return loc.raw || "";
+    }
+
+    function locationAnswer(loc) {
+      if (!loc) return "";
+      const raw = (loc.raw || locationText(loc)).replace(/了$/g, "").replace(/[里上中]$/g, "");
+      return raw;
+    }
+
+    function detectPerson(s) {
+      const m = s.match(/借给([^了放在到]+?)了?$/);
+      return m ? m[1].replace(/^了/, "").trim() : null;
+    }
+
+    // Parsing Layer：规则解析，失败则退回 general
+    let currentState = {};
+    const STATE_EVENTS = ["place", "move", "lend", "return"];
+
+    function makeMemory(base, extra) {
+      return { ...base, id: uid(), ...extra };
+    }
+
+    function parseMemories(originalText) {
+      const original = originalText.trim();
+      let s = stripFillers(original.replace(/[。！？!?]/g, ""));
+      s = s
+        .replace(/放到了/g, "放到")
+        .replace(/放在了/g, "放在")
+        .replace(/拿到了/g, "拿到")
+        .replace(/我借给/g, "借给")
+        .replace(/钥匙后来放/g, "钥匙放");
+      const now = new Date().toISOString();
+      const base = {
+        type: "general",
+        object: null,
+        location: null,
+        person: null,
+        event: null,
+        status: null,
+        timestamp: now,
+        originalText: original,
+        isCurrent: false,
+        supersededBy: null,
+        supersedes: null,
+        uncertain: false,
+      };
+
+      const finishPlace = (objectRaw, locRaw, event, extra) => {
+        const location = parseLocation(locRaw);
+        const objects = splitObjects(objectRaw);
+        if (
+          !objects.length ||
+          objects.every(isVagueObject) ||
+          (location && location.vague) ||
+          isVagueLocation(locRaw)
+        ) {
+          return [makeMemory(base, { type: "general", uncertain: true })];
+        }
+        return objects
+          .filter((o) => !isVagueObject(o))
+          .map((object) =>
+            makeMemory(base, {
+              type: (extra && extra.type) || "location",
+              object,
+              location,
+              person: extra && extra.person ? extra.person : null,
+              event,
+              status: (extra && extra.status) || "stored",
+              uncertain: false,
+            })
+          );
+      };
+
+      const returned =
+        s.match(/把(.+?)还给.+?(?:放在|放到|放)(.+)/) ||
+        s.match(/(.+?)把(.+?)还给.+?(?:放在|放到|放)(.+)/);
+      if (returned && /还给/.test(s)) {
+        const objectRaw = returned.length === 4 ? returned[2] : returned[1];
+        return finishPlace(objectRaw, returned[returned.length - 1], "return");
+      }
+
+      const move = s.match(/把(.+?)从(.+?)(?:拿出来)?(?:再)?(?:拿到|放到|放在|放)(.+?)了?$/);
+      if (move) return finishPlace(move[1], move[3], "move");
+
+      const lend1 = s.match(/把(.+?)借给(.+?)了?$/);
+      const lend2 = s.match(/(.+?)借给(.+?)了?$/);
+      const lend = lend1 || lend2;
+      if (lend && /借给/.test(s) && !/还给/.test(s)) {
+        const objects = splitObjects(lend[1]);
+        const person = lend[2].replace(/了$/g, "").trim();
+        if (!objects.length || objects.every(isVagueObject)) {
+          return [makeMemory(base, { uncertain: true })];
+        }
+        return objects.map((object) =>
+          makeMemory(base, {
+            type: "lending",
+            object,
+            person,
+            event: "lend",
+            status: "lent",
+          })
+        );
+      }
+
+      if (/在哪|借给谁|什么了|哪些/.test(s)) {
+        return [makeMemory(base, {})];
+      }
+
+      const placePatterns = [
+        new RegExp("把(.+?)" + PLACE_VERB + "(.+?)了?$"),
+        new RegExp("(.+?)" + PLACE_VERB + "(.+?)了?$"),
+        /(.+?)在(?!哪)(.+)$/,
+      ];
+      for (const re of placePatterns) {
+        const m = s.match(re);
+        if (m) return finishPlace(m[1], m[2], "place");
+      }
+
+      return [makeMemory(base, {})];
+    }
+
+    function parseMemory(originalText) {
+      return parseMemories(originalText)[0];
+    }
+
+    function objectsMatch(a, b) {
+      if (!a || !b) return false;
+      const x = String(a).toLowerCase().trim();
+      const y = String(b).toLowerCase().trim();
+      const cx = colorOf(x);
+      const cy = colorOf(y);
+      if (cx && cy && cx !== cy) return false;
+      if (x === y) return true;
+      if (x.includes(y) || y.includes(x)) return true;
+      const gx = SYN_GROUPS.find((g) => g.some((w) => x.includes(w)));
+      const gy = SYN_GROUPS.find((g) => g.some((w) => y.includes(w)));
+      return Boolean(gx && gy && gx === gy);
+    }
+
+    function isStateEvent(m) {
+      return Boolean(
+        m &&
+          m.object &&
+          !m.uncertain &&
+          !isVagueObject(m.object) &&
+          STATE_EVENTS.includes(m.event)
+      );
+    }
+
+    function findStateKey(object) {
+      const hit = Object.keys(currentState).find((k) => {
+        const st = currentState[k];
+        return objectsMatch(k, object) || objectsMatch(st.object, object);
+      });
+      return hit || String(object).toLowerCase();
+    }
+
+    function getCurrentState(object) {
+      if (!object || isVagueObject(object)) return null;
+      const entries = Object.keys(currentState).map((k) => currentState[k]);
+      const exact = entries.find((st) => String(st.object).toLowerCase() === String(object).toLowerCase());
+      if (exact) return exact;
+      const colorHits = entries.filter((st) => objectsMatch(st.object, object));
+      if (colorHits.length === 1) return colorHits[0];
+      if (colorHits.length > 1 && colorOf(object)) {
+        return colorHits.find((st) => colorOf(st.object) === colorOf(object)) || null;
+      }
+      if (colorHits.length > 1 && !colorOf(object)) return null;
+      return colorHits[0] || null;
+    }
+
+    function historyForObject(object, exceptId) {
+      return memories
+        .filter((m) => m.object && objectsMatch(m.object, object) && m.id !== exceptId)
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    }
+
+    function resolveStates() {
+      currentState = {};
+      memories.forEach((m) => {
+        m.isCurrent = false;
+        if (m.supersededBy === undefined) m.supersededBy = null;
+        if (m.supersedes === undefined) m.supersedes = null;
+      });
+      const ordered = [...memories]
+        .filter(isStateEvent)
+        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      for (const m of ordered) {
+        const key = findStateKey(m.object);
+        const prev = currentState[key];
+        if (prev) {
+          m.supersedes = prev.memoryId;
+          const prevMem = memories.find((x) => x.id === prev.memoryId);
+          if (prevMem) {
+            prevMem.isCurrent = false;
+            prevMem.supersededBy = m.id;
+          }
+        }
+        m.isCurrent = true;
+        currentState[key] = {
+          object: m.object,
+          location: m.location,
+          person: m.event === "lend" ? m.person : null,
+          event: m.event,
+          status: m.status,
+          memoryId: m.id,
+          updatedAt: m.timestamp,
+        };
+      }
+    }
+
+    resolveStates();
+
+    function formatClock(iso) {
+      const d = new Date(iso);
+      const p = (n) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    }
+
+    function relativeTime(iso) {
+      const ms = Date.now() - new Date(iso).getTime();
+      const min = Math.floor(ms / 60000);
+      if (min < 1) return "刚刚";
+      if (min < 60) return min + " 分钟前";
+      const hr = Math.floor(min / 60);
+      if (hr < 24) return hr + " 小时前";
+      const day = Math.floor(hr / 24);
+      return day + " 天前";
+    }
+
+    function isYesterday(iso, originalText) {
+      if (/昨晚|昨天/.test(originalText || "")) return true;
+      const d = new Date(iso);
+      const y = new Date();
+      y.setDate(y.getDate() - 1);
+      return d.toDateString() === y.toDateString();
+    }
+
+    function isToday(iso) {
+      return new Date(iso).toDateString() === new Date().toDateString();
+    }
+
+    function looksLikeQuery(text) {
+      return /[？?]|在哪|在哪里|放哪|借给谁|借给别人|哪些|什么了|什么东西/.test(text);
+    }
+
+    function parseQuery(text) {
+      let s = text.trim().replace(/[？?。！!]/g, "");
+      const intent = {
+        raw: s,
+        event: null,
+        object: null,
+        locationHint: null,
+        person: null,
+        timeHint: null,
+        focus: "current",
+        wantWhere: false,
+        wantWho: false,
+        wantWhat: false,
+        vague: false,
+      };
+      if (/以前|之前|原来|曾经/.test(s)) intent.focus = "history";
+      else if (/昨天|昨晚/.test(s) && !/现在/.test(s)) intent.focus = "yesterday";
+      else if (/现在|目前|此刻|最后一次/.test(s)) intent.focus = "current";
+      else if (/刚才|刚刚/.test(s)) intent.focus = "current";
+      if (/昨晚|昨天/.test(s)) intent.timeHint = "yesterday";
+      if (/今天/.test(s)) intent.timeHint = "today";
+      if (/借给别人|借了什么|什么.*借|借出/.test(s) || /借给谁/.test(s)) {
+        intent.event = "lend";
+      }
+      if (/借给谁/.test(s)) intent.wantWho = true;
+      if (/什么了|哪些|什么东西/.test(s)) intent.wantWhat = true;
+      if (/在哪|在哪里|放哪|放哪里|找一下|找到/.test(s)) {
+        intent.wantWhere = true;
+        if (!intent.event) intent.event = "place";
+      }
+      for (const room of ROOMS) {
+        if (s.includes(room)) intent.locationHint = room;
+      }
+      for (const furn of FURNITURE) {
+        if (s.includes(furn)) intent.locationHint = intent.locationHint || furn;
+      }
+      let obj = s
+        .replace(/我的|我把/g, "")
+        .replace(/在哪里|在哪儿|在哪|放哪里了|放哪了|放哪|放哪里/g, "")
+        .replace(/借给(谁|别人).*/g, "")
+        .replace(/什么东西|有哪些|哪些|什么了/g, "")
+        .replace(/昨天晚上|昨天|昨晚|今天|回家后/g, "")
+        .replace(/以前|之前|原来|曾经|现在|目前|刚才|刚刚|最后一次/g, "")
+        .replace(/帮我找一下|找一下/g, "")
+        .replace(/东西/g, "")
+        .replace(/^我/, "")
+        .replace(/^把/, "")
+        .trim();
+      obj = cleanObject(obj);
+      if (isVagueObject(obj) || /^(那个|这个|它)$/.test(obj)) {
+        intent.object = null;
+        intent.vague = true;
+      } else if (obj && obj.length <= 20) {
+        intent.object = obj;
+      }
+      return intent;
+    }
+
+    function haystack(m) {
+      return [
+        m.object,
+        m.person,
+        m.originalText,
+        locationText(m.location),
+        locationPath(m.location),
+        m.event,
+        m.status,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+    }
+
+    function scoreMemory(m, intent) {
+      let score = 0;
+      if (intent.object && m.object && objectsMatch(intent.object, m.object)) score += 40;
+      if (intent.locationHint) {
+        const blob = locationText(m.location) + (m.originalText || "");
+        if (blob.includes(intent.locationHint)) score += 20;
+      }
+      if (intent.person && m.person && m.person.includes(intent.person)) score += 20;
+      if (intent.event === "lend") {
+        if (m.event === "lend" && m.status === "lent") score += 35;
+        else score -= 15;
+      }
+      if (intent.event === "place" && (m.event === "place" || m.event === "move") && m.status === "stored") score += 12;
+      if (intent.raw && m.originalText && m.originalText.includes(intent.raw)) score += 8;
+      if (intent.object && m.originalText && objectsMatch(intent.object, m.originalText)) score += 10;
+      if (m.isCurrent) score += 18;
+      const hours = Math.max(0.1, (Date.now() - new Date(m.timestamp).getTime()) / 3600000);
+      score += Math.min(8, 8 / hours);
+      if (intent.timeHint === "yesterday" && isYesterday(m.timestamp, m.originalText)) score += 15;
+      if (intent.timeHint === "today" && isToday(m.timestamp)) score += 10;
+      if (intent.timeHint === "yesterday" && !isYesterday(m.timestamp, m.originalText)) score -= 8;
+      return score;
+    }
+
+    const UNSURE = "我目前没有足够的信息确定它的位置。是哪一件物品？";
+
+    function retrieve(query) {
+      const intent = parseQuery(query);
+      if (intent.vague || (intent.wantWhere && !intent.object && intent.event !== "lend")) {
+        return { intent, results: [], current: null, history: [], unsure: true };
+      }
+      if (intent.focus === "history" && intent.object) {
+        const hist = memories
+          .filter((m) => m.object && objectsMatch(m.object, intent.object) && m.isCurrent === false)
+          .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        return {
+          intent,
+          results: hist.slice(0, 3),
+          current: getCurrentState(intent.object),
+          history: hist,
+        };
+      }
+      if (intent.focus === "yesterday" && intent.object) {
+        const yest = memories
+          .filter(
+            (m) =>
+              m.object &&
+              objectsMatch(m.object, intent.object) &&
+              isYesterday(m.timestamp, m.originalText)
+          )
+          .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        if (yest.length) {
+          return { intent, results: [yest[0]], current: null, history: yest.slice(1) };
+        }
+      }
+      if ((intent.wantWhere || intent.focus === "current") && intent.object) {
+        const state = getCurrentState(intent.object);
+        if (state) {
+          const currentMem = memories.find((m) => m.id === state.memoryId);
+          return {
+            intent,
+            results: currentMem ? [currentMem] : [],
+            current: state,
+            history: historyForObject(state.object || intent.object, state.memoryId),
+          };
+        }
+      }
+      if (intent.event === "lend" && !intent.object) {
+        const lent = Object.values(currentState).filter((s) => s.status === "lent");
+        const results = lent
+          .map((s) => memories.find((m) => m.id === s.memoryId))
+          .filter(Boolean);
+        return { intent, results, current: lent[0] || null, history: [] };
+      }
+      const ranked = memories
+        .filter((m) => !m.uncertain)
+        .map((m) => ({ m, score: scoreMemory(m, intent) }))
+        .filter((x) => x.score > 8)
+        .sort((a, b) => b.score - a.score);
+      return {
+        intent,
+        results: ranked.map((x) => x.m).slice(0, 5),
+        current: intent.object ? getCurrentState(intent.object) : null,
+        history: [],
+      };
+    }
+
+    function answerFromState(state, fallbackObject, focus) {
+      if (!state) return "";
+      const obj = state.object || fallbackObject;
+      const prefix = focus === "history" ? "以前" : "现在";
+      if (state.status === "lent" && state.person) {
+        return `你的${obj}${prefix}借给${state.person}了。`;
+      }
+      if (state.location) {
+        return `你的${obj}${prefix}在${locationAnswer(state.location)}。`;
+      }
+      return "";
+    }
+
+    function makeAnswer(intent, results, current) {
+      if (intent && intent.vague) return UNSURE;
+      if (intent && intent.focus === "history") {
+        if (results && results.length && results[0].location) {
+          return `你的${results[0].object}以前在${locationAnswer(results[0].location)}。`;
+        }
+        if (current && current.location) {
+          return "我目前只有当前位置，没有更早的历史记录。";
+        }
+        return UNSURE;
+      }
+      const state = current || (intent.object ? getCurrentState(intent.object) : null);
+      const fromState = answerFromState(state, intent.object, intent.focus);
+      if (fromState && intent.focus !== "history") return fromState;
+      if (!results.length) return intent.wantWhere ? UNSURE : "";
+      const m = results[0];
+      if (m.uncertain) return UNSURE;
+      if (intent.event === "lend" || intent.wantWho) {
+        if (m.person && m.object) return `${m.object}借给了${m.person}。`;
+      }
+      if (m.type === "location" && m.object && m.location && !isVagueObject(m.object)) {
+        return `你的${m.object}现在在${locationAnswer(m.location)}。`;
+      }
+      if (m.type === "lending" && m.object && m.person) {
+        return `你的${m.object}现在借给${m.person}了。`;
+      }
+      if (intent.wantWhere) return UNSURE;
+      return "";
+    }
+
+    function rememberedLine(m) {
+      const bits = ["已记住"];
+      if (m.object) bits.push("🔑 " + m.object);
+      if (m.location) bits.push("📍 " + locationPath(m.location));
+      if (m.person) bits.push("👤 " + m.person);
+      bits.push("🕐 刚刚");
+      return bits.join("　");
+    }
+
+    function recordHtml(m, withDelete) {
+      const tags = [];
+      if (m.object) tags.push(`<span class="field">物品</span> <span class="tag">${m.object}</span>`);
+      if (m.location) tags.push(`<span class="field">位置</span> <span class="tag">${locationPath(m.location)}</span>`);
+      if (m.person) tags.push(`<span class="field">人物</span> <span class="tag">${m.person}</span>`);
+      if (m.event) tags.push(`<span class="field">事件</span> <span class="tag">${m.event}</span>`);
+      if (m.status) tags.push(`<span class="field">状态</span> <span class="tag">${m.status}</span>`);
+      if (!m.object && !m.location) tags.push(`<span class="tag">原文已保存</span>`);
+      const hist = m.isCurrent ? "" : " history";
+      const del = withDelete
+        ? `<button class="del" type="button" data-del="${m.id}">删除</button>`
+        : "";
+      return `
+        <li class="record-card${hist}">
+          <div class="meta">${formatClock(m.timestamp)}</div>
+          <div class="item-line">${tags.join("")}</div>
+          <div class="original">${m.originalText}${m.isCurrent ? "" : "（历史）"}</div>
+          ${del}
+        </li>`;
+    }
+
+    function render() {
+      empty.style.display = memories.length ? "none" : "block";
+      const sorted = [...memories].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      timeline.innerHTML = sorted.map((m) => recordHtml(m, true)).join("");
+      renderSearch();
+    }
+
+    function renderSearch() {
+      const q = searchInput.value.trim();
+      if (!q) {
+        answerEl.innerHTML = "";
+        evidenceLabel.textContent = "";
+        searchResults.innerHTML = "";
+        searchEmpty.textContent = memories.length ? "用自然语言问一句即可。" : "";
+        return;
+      }
+      const { intent, results, current, history, unsure } = retrieve(q);
+      if (unsure || (!results.length && !(current && makeAnswer(intent, results, current)))) {
+        const answer = makeAnswer(intent, results, current) || UNSURE;
+        answerEl.innerHTML = `<div class="answer-box"><strong>${answer}</strong></div>`;
+        evidenceLabel.textContent = "";
+        searchResults.innerHTML = "";
+        searchEmpty.textContent = "";
+        return;
+      }
+      const answer = makeAnswer(intent, results, current);
+      const latest = results[0];
+      answerEl.innerHTML = `<div class="answer-box"><strong>${answer}</strong></div>`;
+      evidenceLabel.textContent = `最近记录：${relativeTime(latest.timestamp)}`;
+      let html = results.map((m) => recordHtml(m, false)).join("");
+      if (history && history.length) {
+        html += `<li class="history-toggle"><details><summary>查看历史位置（${history.length}）</summary><ul class="timeline">${history.map((m) => recordHtml(m, false)).join("")}</ul></details></li>`;
+      }
+      searchResults.innerHTML = html;
+      searchEmpty.textContent = "";
+    }
+
+    function runSearch(q) {
+      searchInput.value = q;
+      renderSearch();
+      searchInput.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      errorEl.textContent = "";
+      okEl.textContent = "";
+      const text = input.value.trim();
+      if (!text) {
+        errorEl.textContent = "先说一句要记住的话。";
+        return;
+      }
+      if (looksLikeQuery(text)) {
+        input.value = "";
+        okEl.textContent = "这是一句提问，已帮你检索。";
+        runSearch(text);
+        return;
+      }
+      const list = parseMemories(text);
+      list.forEach((memory) => memories.unshift(memory));
+      resolveStates();
+      persist();
+      input.value = "";
+      const first = list[0];
+      okEl.textContent = first.uncertain
+        ? "已记住原文，但物品不够明确，还不能当作当前状态。"
+        : list.map(rememberedLine).join("；");
+      render();
+    });
+
+    timeline.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-del]");
+      if (!btn) return;
+      const id = btn.getAttribute("data-del");
+      memories = memories.filter((m) => m.id !== id);
+      resolveStates();
+      persist();
+      render();
+    });
+
+    searchForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      renderSearch();
+    });
+    searchInput.addEventListener("input", renderSearch);
+
+    render();
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+    let listening = false;
+
+    if (!SpeechRecognition) {
+      micBtn.disabled = true;
+      micBtn.title = "当前浏览器不支持 Web Speech API，请用 Chrome / Edge";
+    } else {
+      recognition = new SpeechRecognition();
+      recognition.lang = "zh-CN";
+      recognition.interimResults = true;
+      recognition.continuous = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        listening = true;
+        micBtn.classList.add("listening");
+        micBtn.textContent = "正在听…";
+        errorEl.textContent = "";
+      };
+
+      recognition.onresult = (event) => {
+        let transcript = "";
+        let allFinal = true;
+        for (let i = 0; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+          if (!event.results[i].isFinal) allFinal = false;
+        }
+        input.value = transcript.trim();
+        if (allFinal && input.value) form.requestSubmit();
+      };
+
+      recognition.onerror = (event) => {
+        const map = {
+          "not-allowed": "没有麦克风权限，请在浏览器设置里允许。",
+          "no-speech": "没听到声音，请再说一次。",
+          "audio-capture": "找不到麦克风。",
+          "network": "语音识别需要网络，请检查连接。",
+        };
+        errorEl.textContent = map[event.error] || "语音识别失败：" + event.error;
+      };
+
+      recognition.onend = () => {
+        listening = false;
+        micBtn.classList.remove("listening");
+        micBtn.textContent = "开始录音";
+      };
+
+      micBtn.addEventListener("click", () => {
+        if (!recognition) return;
+        if (listening) {
+          recognition.stop();
+          return;
+        }
+        try {
+          recognition.start();
+        } catch (err) {
+          errorEl.textContent = "无法开始录音：" + err.message;
+        }
+      });
+    }
+  </script>
+</body>
+</html>
