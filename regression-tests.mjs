@@ -70,6 +70,9 @@ eval(
   parseMemories,
   retrieve,
   makeAnswer,
+  buildExplain,
+  composeQueryResponse,
+  buildStateUpdateExplain,
   resolveStates,
   looksLikeQuery,
   clarifyCardHtml,
@@ -102,11 +105,14 @@ eval(
   },
   ask(q) {
     const r = retrieve(q);
+    const composed = composeQueryResponse(r);
     return {
-      answer: makeAnswer(r.intent, r.results, r.current, { ambiguous: r.ambiguous }) || "",
+      answer: composed.answer || "",
       intent: r.intent,
       current: r.current,
       ambiguous: r.ambiguous || null,
+      explain: composed.explain,
+      isClarify: composed.isClarify,
     };
   },
 };`
@@ -422,9 +428,8 @@ results.push(
     ["黑色钥匙放书桌。", "红色钥匙放茶几。"],
     "钥匙在哪？",
     (g) =>
-      /你是指/.test(g.answer) &&
-      has(g.answer, "黑色钥匙") &&
-      has(g.answer, "红色钥匙") &&
+      has(g.answer, "多个可能的物品") &&
+      has(g.answer, "避免答错") &&
       !has(g.answer, "现在在")
   )
 );
@@ -452,6 +457,149 @@ results.push(
     (g) => has(g.answer, "以前") && has(g.answer, "茶几") && !has(g.answer, "书桌")
   )
 );
+
+// ---------- Explainability X1-X6 ----------
+{
+  MH.reset();
+  for (const t of ["我把钥匙放茶几。", "我把钥匙拿到玄关柜了。"]) {
+    MH.record(t);
+    wait();
+  }
+  const g = MH.ask("我的钥匙在哪？");
+  const x = g.explain || {};
+  const pass =
+    has(g.answer, "玄关柜") &&
+    x.kind === "current" &&
+    x.entity === "钥匙" &&
+    has(x.currentState, "玄关柜") &&
+    has(x.evidenceText, "玄关柜") &&
+    has(x.reason, "最近一次有效");
+  results.push({
+    id: "X1-Current-Evidence",
+    pass,
+    answer: pass ? JSON.stringify(x) : `ans=${g.answer} explain=${JSON.stringify(x)}`,
+  });
+}
+{
+  MH.reset();
+  for (const t of ["钥匙放茶几。", "我把钥匙拿到玄关柜了。"]) {
+    MH.record(t);
+    wait();
+  }
+  const before = JSON.parse(JSON.stringify(Object.values(MH.ask("noop").current || {})));
+  void before;
+  // State update explain from last capture path metadata
+  const list = MH.record("钥匙放茶几。");
+  wait();
+  MH.record("我把钥匙拿到玄关柜了。");
+  wait();
+  // rebuild explain via compose on a synthetic prev/next from dump
+  const dumpAsk = MH.ask("我的钥匙在哪？");
+  const stateExplain = MH.buildStateUpdateExplain(
+    { object: "钥匙", location: { raw: "茶几", hierarchy: ["茶几"], vague: false } },
+    {
+      object: "钥匙",
+      location: { raw: "玄关柜", hierarchy: ["玄关柜"], vague: false },
+      originalText: "我把钥匙拿到玄关柜了。",
+    }
+  );
+  const pass =
+    stateExplain &&
+    stateExplain.kind === "state_update" &&
+    has(stateExplain.currentState, "玄关柜") &&
+    has(stateExplain.reason, "最近一次有效") &&
+    has(stateExplain.note, "历史");
+  results.push({
+    id: "X2-State-Resolution-Reason",
+    pass,
+    answer: pass ? JSON.stringify(stateExplain) : JSON.stringify(stateExplain),
+  });
+  void dumpAsk;
+  void list;
+}
+{
+  MH.reset();
+  for (const t of ["钥匙放茶几。", "我把钥匙拿到玄关柜了。"]) {
+    MH.record(t);
+    wait();
+  }
+  const g = MH.ask("钥匙以前在哪？");
+  const x = g.explain || {};
+  const pass =
+    has(g.answer, "以前") &&
+    has(g.answer, "茶几") &&
+    x.kind === "history" &&
+    has(x.reason, "历史") &&
+    !has(x.reason || "", "最近一次有效的位置更新");
+  results.push({
+    id: "X3-History-Evidence",
+    pass,
+    answer: pass ? JSON.stringify(x) : `ans=${g.answer} explain=${JSON.stringify(x)}`,
+  });
+}
+{
+  MH.reset();
+  for (const t of ["红色钥匙放茶几。", "黑色钥匙放书桌。"]) {
+    MH.record(t);
+    wait();
+  }
+  const g = MH.ask("我的钥匙在哪？");
+  const x = g.explain || {};
+  const html = MH.clarifyCardHtml(g.answer, x);
+  const pass =
+    g.isClarify &&
+    x.kind === "ambiguous" &&
+    has(g.answer, "多个可能的物品") &&
+    has(x.reason, "多个可能的物品") &&
+    /clarify-chip/.test(html) &&
+    has(html, "红色钥匙") &&
+    has(html, "黑色钥匙") &&
+    !/clarify-reason/.test(html) &&
+    !has(html, "你是指") &&
+    !has(html, "baseObject") &&
+    !has(html, "attrKey");
+  results.push({
+    id: "X4-Attribute-Clarify-Reason",
+    pass,
+    answer: pass ? g.answer : `ans=${g.answer} explain=${JSON.stringify(x)} html=${html}`,
+  });
+}
+{
+  MH.reset();
+  const parsed = MH.record("我把它放电视柜里了。");
+  const g = MH.ask("刚才那个东西在哪？");
+  const x = g.explain || {};
+  // 不确定：不编造当前位置/最近有效记录
+  const pass =
+    parsed[0].uncertain &&
+    (!x || x.kind === "uncertain" || g.isClarify) &&
+    !x.currentState &&
+    !x.evidenceText &&
+    !has(g.answer, "电视柜");
+  results.push({
+    id: "X5-Uncertainty-No-False-Explain",
+    pass,
+    answer: pass ? JSON.stringify(x) : `ans=${g.answer} explain=${JSON.stringify(x)}`,
+  });
+}
+{
+  MH.reset();
+  for (const t of ["我把钥匙放茶几。", "我把钥匙拿到玄关柜了。"]) {
+    MH.record(t);
+    wait();
+  }
+  const g = MH.ask("我的钥匙在哪？");
+  const pass =
+    g.answer === "你的钥匙现在在玄关柜。" &&
+    g.explain &&
+    g.explain.kind === "current" &&
+    g.explain.entity === "钥匙";
+  results.push({
+    id: "X6-Explain-Does-Not-Change-Answer",
+    pass,
+    answer: pass ? g.answer : `ans=${g.answer}`,
+  });
+}
 
 results.forEach((c) => {
   console.log(c.id, c.pass ? "PASS" : "FAIL", c.answer || "");

@@ -120,6 +120,92 @@
       letter-spacing: 0.04em;
       margin-bottom: 6px;
     }
+    .explain-trace {
+      margin-top: 8px;
+      min-width: 220px;
+      max-width: 100%;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 0;
+      overflow: hidden;
+    }
+    .explain-trace > summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: var(--muted);
+      user-select: none;
+    }
+    .explain-trace > summary::-webkit-details-marker { display: none; }
+    .explain-trace > summary::before {
+      content: "▸ ";
+      display: inline-block;
+      transition: transform 0.15s ease;
+    }
+    .explain-trace[open] > summary::before {
+      transform: rotate(90deg);
+    }
+    .explain-trace[open] > summary {
+      border-bottom: 1px solid var(--line);
+      color: var(--text);
+    }
+    .explain-body {
+      padding: 12px 16px 14px;
+      display: grid;
+      gap: 12px;
+    }
+    .explain-row .k,
+    .explain-block .k {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .explain-row .v,
+    .explain-block .v {
+      font-size: 14px;
+      line-height: 1.55;
+      color: var(--text);
+    }
+    .explain-block .meta {
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .state-diff .explain-foot {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid var(--line);
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+    .clarify-choices {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .clarify-chip {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      border-radius: 999px;
+      padding: 7px 12px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .clarify-chip:hover {
+      background: var(--accent-soft);
+    }
+    .clarify-reason {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.55;
+      margin-top: 4px;
+    }
     .msg {
       display: flex;
       flex-direction: column;
@@ -1168,7 +1254,7 @@
 
     function makeAnswer(intent, results, current, meta) {
       if (meta && meta.ambiguous && meta.ambiguous.length) {
-        return disambiguateAsk(meta.ambiguous);
+        return "我找到了多个可能的物品，为了避免答错，需要你确认一下。";
       }
       if (intent && intent.vague) {
         if (intent.raw && /它/.test(intent.raw) && !/其它|其他/.test(intent.raw)) return ASK_IT;
@@ -1215,6 +1301,97 @@
         return intent.object ? `我目前没有记住${intent.object}的位置。` : UNSURE;
       }
       return "";
+    }
+
+    function describePlace(memOrState) {
+      if (!memOrState) return "";
+      if (memOrState.location) return locationAnswer(memOrState.location);
+      if (memOrState.person) {
+        if (memOrState.status === "lent" || memOrState.event === "lend") {
+          return `借给${memOrState.person}`;
+        }
+        return `${memOrState.person}那里`;
+      }
+      return "";
+    }
+
+    // Explainability：只消费 Retrieval 已选结果，不在 UI 层重新判断 Memory。
+    function buildExplain(retrieved, answer) {
+      if (!retrieved) return null;
+      const { intent, results, current, ambiguous, unsure } = retrieved;
+
+      if (ambiguous && ambiguous.length) {
+        return {
+          kind: "ambiguous",
+          entity: (intent && intent.object) || "",
+          candidates: ambiguous.map((c) => c.object).filter(Boolean),
+          reason: "我找到了多个可能的物品，为了避免答错，需要你确认一下。",
+        };
+      }
+
+      // Uncertainty：不编造对象/位置证据，沿用既有 Clarify 文案即可。
+      if (unsure || (intent && intent.vague)) {
+        return {
+          kind: "uncertain",
+          reason: "这条会先保存原文，但不会当作确定的当前位置。",
+        };
+      }
+
+      if (intent && intent.focus === "history") {
+        const m = results && results[0] ? results[0] : null;
+        if (!m && !(answer && /以前/.test(answer))) {
+          return {
+            kind: "history",
+            entity: (intent && intent.object) || "",
+            reason: "这不是当前状态，而是该物品的历史记录。",
+          };
+        }
+        return {
+          kind: "history",
+          entity: (m && m.object) || (intent && intent.object) || "",
+          historicalState: m ? describePlace(m) : "",
+          evidenceText: m ? m.originalText || "" : "",
+          evidenceTime: m ? relativeTime(m.timestamp) : "",
+          reason: "这不是当前状态，而是该物品的历史记录。",
+        };
+      }
+
+      const evidence = results && results[0] && !results[0].uncertain ? results[0] : null;
+      const state = current || null;
+      if (!state && !evidence) return null;
+
+      return {
+        kind: "current",
+        entity: (state && state.object) || (evidence && evidence.object) || (intent && intent.object) || "",
+        currentState: state ? describePlace(state) : evidence ? describePlace(evidence) : "",
+        evidenceText: evidence ? evidence.originalText || "" : "",
+        evidenceTime: evidence ? relativeTime(evidence.timestamp) : "",
+        reason: "最近一次有效的位置更新",
+      };
+    }
+
+    function composeQueryResponse(retrieved) {
+      const { intent, results, current, unsure, ambiguous } = retrieved || {};
+      const answer = makeAnswer(intent, results, current, { ambiguous }) || UNSURE;
+      const explain = buildExplain(retrieved, answer);
+      const evidence = results && results[0] ? results[0] : null;
+      const isClarify =
+        Boolean(unsure) ||
+        Boolean(ambiguous && ambiguous.length) ||
+        Boolean(intent && intent.vague) ||
+        /哪一件|不确定|指的是|你是指/.test(answer);
+      return { answer, explain, evidence, isClarify, retrieved };
+    }
+
+    function buildStateUpdateExplain(prev, next) {
+      if (!next) return null;
+      return {
+        kind: "state_update",
+        entity: next.object || "",
+        currentState: describePlace(next),
+        reason: "当前状态依据最近一次有效更新",
+        note: "上一条位置已保留在历史记录中。",
+      };
     }
 
     function objectEmoji(obj) {
@@ -1295,8 +1472,24 @@
       return `<div class="memory-card"><div class="title">MEMORY</div>${rows.join("")}</div>`;
     }
 
-    function clarifyCardHtml(text) {
-      // 单次 Clarify：一条 AI bubble + 一张 Clarify Card，不把同一句追问再写进卡片。
+    function clarifyCardHtml(text, explain) {
+      // 单次 Clarify：一条 AI bubble + 一张 Clarify Card。
+      if (explain && explain.kind === "ambiguous") {
+        const chips = (explain.candidates || [])
+          .map(
+            (name) =>
+              `<button type="button" class="clarify-chip" data-text="${escapeHtml(name)}在哪？">${escapeHtml(
+                name
+              )}</button>`
+          )
+          .join("");
+        const bubbleText = explain.reason || text;
+        return `<div class="bubble">${escapeHtml(bubbleText)}</div>
+          <div class="clarify-card">
+            <div class="title">CLARIFY</div>
+            ${chips ? `<div class="clarify-choices">${chips}</div>` : ""}
+          </div>`;
+      }
       return `<div class="bubble">${escapeHtml(text)}</div>
         <div class="clarify-card">
           <div class="title">CLARIFY</div>
@@ -1335,6 +1528,10 @@
           return `<div class="muted">· ${escapeHtml(h.object)} → ${escapeHtml(loc)}</div>`;
         })
         .join("");
+      const explain = buildStateUpdateExplain(prev, next);
+      const foot = explain
+        ? `<div class="explain-foot">${escapeHtml(explain.reason)}<br/>${escapeHtml(explain.note || "")}</div>`
+        : "";
       return `<div class="bubble">好的，我更新了${escapeHtml(next.object)}的位置。</div>
         <div class="state-diff">
           <div class="title">STATE UPDATE</div>
@@ -1343,21 +1540,66 @@
           <div class="row"><strong>Current</strong> ${escapeHtml(next.object)} → ${escapeHtml(newLoc)}</div>
           <div class="muted" style="margin-top:8px">History</div>
           ${hist || `<div class="muted">· ${escapeHtml(next.object)} → ${escapeHtml(oldLoc)}</div>`}
+          ${foot}
         </div>`;
     }
 
-    function answerBlockHtml(answer, evidenceMem) {
-      let card = "";
-      if (evidenceMem) {
-        card = `<div class="answer-card">
-          <div class="title">ANSWER</div>
-          <div class="evidence">
-            <div class="meta">最近记录 · ${escapeHtml(relativeTime(evidenceMem.timestamp))}</div>
-            “${escapeHtml(evidenceMem.originalText)}”
-          </div>
-        </div>`;
+    function explainTraceHtml(explain) {
+      if (!explain) return "";
+      if (explain.kind === "uncertain" || explain.kind === "ambiguous") return "";
+      if (explain.kind === "state_update") return "";
+
+      const blocks = [];
+      if (explain.entity) {
+        blocks.push(
+          `<div class="explain-row"><div class="k">识别对象</div><div class="v">${escapeHtml(
+            explain.entity
+          )}</div></div>`
+        );
       }
-      return `<div class="bubble">${escapeHtml(answer)}</div>${card}`;
+      if (explain.kind === "history") {
+        if (explain.historicalState) {
+          blocks.push(
+            `<div class="explain-row"><div class="k">历史位置</div><div class="v">${escapeHtml(
+              explain.historicalState
+            )}</div></div>`
+          );
+        }
+      } else if (explain.currentState) {
+        blocks.push(
+          `<div class="explain-row"><div class="k">当前状态</div><div class="v">${escapeHtml(
+            explain.currentState
+          )}</div></div>`
+        );
+      }
+      if (explain.evidenceText) {
+        blocks.push(
+          `<div class="explain-block"><div class="k">最近有效记录</div><div class="v">“${escapeHtml(
+            explain.evidenceText
+          )}”</div>${
+            explain.evidenceTime
+              ? `<div class="meta">${escapeHtml(explain.evidenceTime)}</div>`
+              : ""
+          }</div>`
+        );
+      }
+      if (explain.reason) {
+        blocks.push(
+          `<div class="explain-row"><div class="k">判断依据</div><div class="v">${escapeHtml(
+            explain.reason
+          )}</div></div>`
+        );
+      }
+      if (!blocks.length) return "";
+      return `<details class="explain-trace">
+        <summary>为什么这么回答？</summary>
+        <div class="explain-body">${blocks.join("")}</div>
+      </details>`;
+    }
+
+    function answerBlockHtml(answer, explain) {
+      // Evidence Trace 默认收起；数据来自 Retrieval explain，不再单独猜。
+      return `<div class="bubble">${escapeHtml(answer)}</div>${explainTraceHtml(explain)}`;
     }
 
     function findPrevStateSnapshot(object, snapshot) {
@@ -1416,20 +1658,19 @@
     function runQuery(q) {
       appendUser(q);
       const retrieved = retrieve(q);
-      const { intent, results, current, unsure, ambiguous } = retrieved;
-      const answer =
-        makeAnswer(intent, results, current, { ambiguous }) || UNSURE;
-      const evidence = results && results[0] ? results[0] : null;
-      const isClarify =
-        unsure ||
-        Boolean(ambiguous && ambiguous.length) ||
-        intent.vague ||
-        /哪一件|不确定|指的是|你是指/.test(answer);
-      // 同一条输入只渲染一次：Clarify 走 clarifyCardHtml；否则走 Answer。
-      if (isClarify && (!evidence || evidence.uncertain || intent.vague || (ambiguous && ambiguous.length))) {
-        appendAi(clarifyCardHtml(answer));
+      const { answer, explain, evidence, isClarify } = composeQueryResponse(retrieved);
+      // 同一条输入只渲染一次：Clarify 走 clarifyCardHtml；否则走 Answer + Explain Trace。
+      if (
+        isClarify &&
+        (!evidence ||
+          evidence.uncertain ||
+          (retrieved.intent && retrieved.intent.vague) ||
+          (retrieved.ambiguous && retrieved.ambiguous.length) ||
+          (explain && explain.kind === "uncertain"))
+      ) {
+        appendAi(clarifyCardHtml(answer, explain));
       } else {
-        appendAi(answerBlockHtml(answer, evidence && !evidence.uncertain ? evidence : null));
+        appendAi(answerBlockHtml(answer, explain));
       }
       render();
     }
@@ -1536,6 +1777,17 @@
 
     document.getElementById("exampleChips")?.addEventListener("click", (e) => {
       const chip = e.target.closest(".chip");
+      if (!chip) return;
+      const text = chip.getAttribute("data-text") || "";
+      if (!text) return;
+      dismissVoiceDraft();
+      input.value = text;
+      form.requestSubmit();
+    });
+
+    // Clarify 候选芯片：复用 Composer 发送，不另开 Memory 写入路径。
+    thread.addEventListener("click", (e) => {
+      const chip = e.target.closest(".clarify-chip");
       if (!chip) return;
       const text = chip.getAttribute("data-text") || "";
       if (!text) return;
