@@ -250,7 +250,8 @@
       gap: 8px;
       flex-wrap: wrap;
     }
-    .btn-voice-retry {
+    .btn-voice-retry,
+    .btn-voice-cancel {
       background: #fff;
       color: var(--text);
       border: 1px solid var(--line) !important;
@@ -365,6 +366,7 @@
         <div class="voice-draft" id="voiceDraft">
           <p class="hint">语音识别结果已填入输入框，可先编辑再确认发送。</p>
           <div class="voice-actions">
+            <button type="button" class="btn-voice-cancel" id="voiceCancel">取消</button>
             <button type="button" class="btn-voice-retry" id="voiceRetry">重新录音</button>
             <button type="button" class="btn-voice-confirm" id="voiceConfirm">确认发送</button>
           </div>
@@ -737,18 +739,64 @@
       return parseMemories(text);
     }
 
-    function objectsMatch(a, b) {
-      if (!a || !b) return false;
-      const x = String(a).toLowerCase().trim();
-      const y = String(b).toLowerCase().trim();
-      const cx = colorOf(x);
-      const cy = colorOf(y);
-      if (cx && cy && cx !== cy) return false;
+    function parseEntity(object) {
+      const raw = String(object || "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!raw) return { raw: "", baseObject: "", attributes: [], attrKey: "" };
+      let rest = raw;
+      const attributes = [];
+      for (const c of [...COLORS].sort((a, b) => b.length - a.length)) {
+        if (rest.includes(c)) {
+          attributes.push(c);
+          rest = rest.split(c).join("");
+        }
+      }
+      rest = rest.replace(/\s+/g, "").trim();
+      const baseObject = rest || raw;
+      const attrs = attributes.slice().sort();
+      return {
+        raw,
+        baseObject,
+        attributes: attrs,
+        attrKey: attrs.join(","),
+      };
+    }
+
+    function baseSynonymMatch(a, b) {
+      const x = String(a || "")
+        .toLowerCase()
+        .trim();
+      const y = String(b || "")
+        .toLowerCase()
+        .trim();
+      if (!x || !y) return false;
       if (x === y) return true;
-      if (x.includes(y) || y.includes(x)) return true;
-      const gx = SYN_GROUPS.find((g) => g.some((w) => x.includes(w)));
-      const gy = SYN_GROUPS.find((g) => g.some((w) => y.includes(w)));
-      return Boolean(gx && gy && gx === gy);
+      for (const g of SYN_GROUPS) {
+        const gl = g.map((w) => String(w).toLowerCase());
+        if (gl.includes(x) && gl.includes(y)) return true;
+      }
+      return false;
+    }
+
+    function entityStateKey(object) {
+      const e = parseEntity(object);
+      return `${String(e.baseObject).toLowerCase()}::${e.attrKey}`;
+    }
+
+    // Entity identity：同 base + 同 attributes 才是同一实体。
+    // 「钥匙」与「红色钥匙」不同；禁止用 substring/includes 合并。
+    function sameEntity(a, b) {
+      if (!a || !b) return false;
+      const ea = parseEntity(a);
+      const eb = parseEntity(b);
+      if (ea.raw.toLowerCase() === eb.raw.toLowerCase()) return true;
+      if (!baseSynonymMatch(ea.baseObject, eb.baseObject)) return false;
+      return ea.attrKey === eb.attrKey;
+    }
+
+    function objectsMatch(a, b) {
+      return sameEntity(a, b);
     }
 
     function isStateEvent(m) {
@@ -765,28 +813,61 @@
     function findStateKey(object) {
       const hit = Object.keys(currentState).find((k) => {
         const st = currentState[k];
-        return objectsMatch(k, object) || objectsMatch(st.object, object);
+        return sameEntity(k, object) || sameEntity(st.object, object);
       });
-      return hit || String(object).toLowerCase();
+      return hit || entityStateKey(object);
+    }
+
+    // Query Entity Resolution：Exact > Normalized > bare-only；不把 bare query 默认落到带属性实体。
+    function resolveQueryEntity(object) {
+      if (!object || isVagueObject(object)) return { status: "none" };
+      const entries = Object.keys(currentState).map((k) => currentState[k]);
+      const q = parseEntity(object);
+
+      const exact = entries.find(
+        (st) => String(st.object).toLowerCase() === String(object).toLowerCase()
+      );
+      if (exact) return { status: "found", state: exact, match: "exact" };
+
+      const normalized = entries.filter((st) => sameEntity(st.object, object));
+      if (normalized.length === 1) return { status: "found", state: normalized[0], match: "normalized" };
+      if (normalized.length > 1) {
+        return { status: "ambiguous", candidates: normalized, match: "normalized" };
+      }
+
+      // bare query：只命中无属性的同 base 实体；带属性的候选用于消歧，绝不静默顶替。
+      if (q.attributes.length === 0) {
+        const bare = entries.filter((st) => {
+          const e = parseEntity(st.object);
+          return e.attributes.length === 0 && baseSynonymMatch(e.baseObject, q.baseObject);
+        });
+        if (bare.length === 1) return { status: "found", state: bare[0], match: "bare" };
+        if (bare.length > 1) return { status: "ambiguous", candidates: bare, match: "bare" };
+
+        const attributed = entries.filter((st) => {
+          const e = parseEntity(st.object);
+          return e.attributes.length > 0 && baseSynonymMatch(e.baseObject, q.baseObject);
+        });
+        if (attributed.length === 1) {
+          return { status: "ambiguous", candidates: attributed, match: "partial" };
+        }
+        if (attributed.length > 1) {
+          return { status: "ambiguous", candidates: attributed, match: "partial" };
+        }
+      }
+
+      return { status: "none" };
     }
 
     function getCurrentState(object) {
-      if (!object || isVagueObject(object)) return null;
-      const entries = Object.keys(currentState).map((k) => currentState[k]);
-      const exact = entries.find((st) => String(st.object).toLowerCase() === String(object).toLowerCase());
-      if (exact) return exact;
-      const colorHits = entries.filter((st) => objectsMatch(st.object, object));
-      if (colorHits.length === 1) return colorHits[0];
-      if (colorHits.length > 1 && colorOf(object)) {
-        return colorHits.find((st) => colorOf(st.object) === colorOf(object)) || null;
-      }
-      if (colorHits.length > 1 && !colorOf(object)) return null;
-      return colorHits[0] || null;
+      const resolved = resolveQueryEntity(object);
+      if (resolved.status === "found") return resolved.state;
+      return null;
     }
 
     function historyForObject(object, exceptId) {
       return memories
-        .filter((m) => m.object && objectsMatch(m.object, object) && m.id !== exceptId)
+        .filter((m) => m.object && sameEntity(m.object, object) && m.id !== exceptId)
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     }
 
@@ -918,6 +999,8 @@
         .replace(/东西/g, "")
         .replace(/^我/, "")
         .replace(/^把/, "")
+        // 去掉「以前放在哪」剥离后残留的放置动词，避免 object=钥匙放
+        .replace(/(?:放|放到|放在|拿到|拿去)$/g, "")
         .trim();
       obj = cleanObject(obj);
       if (isVagueObject(obj) || /^(那个|这个|它)$/.test(obj)) {
@@ -946,7 +1029,7 @@
 
     function scoreMemory(m, intent) {
       let score = 0;
-      if (intent.object && m.object && objectsMatch(intent.object, m.object)) score += 40;
+      if (intent.object && m.object && sameEntity(intent.object, m.object)) score += 40;
       if (intent.locationHint) {
         const blob = locationText(m.location) + (m.originalText || "");
         if (blob.includes(intent.locationHint)) score += 20;
@@ -958,7 +1041,6 @@
       }
       if (intent.event === "place" && (m.event === "place" || m.event === "move") && m.status === "stored") score += 12;
       if (intent.raw && m.originalText && m.originalText.includes(intent.raw)) score += 8;
-      if (intent.object && m.originalText && objectsMatch(intent.object, m.originalText)) score += 10;
       if (m.isCurrent) score += 18;
       const hours = Math.max(0.1, (Date.now() - new Date(m.timestamp).getTime()) / 3600000);
       score += Math.min(8, 8 / hours);
@@ -978,14 +1060,43 @@
       return ASK_THING;
     }
 
+    function disambiguateAsk(candidates) {
+      const names = [
+        ...new Set(
+          (candidates || [])
+            .map((c) => (c && c.object) || c)
+            .filter(Boolean)
+            .map((n) => String(n))
+        ),
+      ];
+      if (!names.length) return ASK_THING;
+      if (names.length === 1) return `你是指${names[0]}吗？`;
+      if (names.length === 2) return `你是指${names[0]}还是${names[1]}？`;
+      return `你是指${names.slice(0, -1).join("、")}还是${names[names.length - 1]}？`;
+    }
+
     function retrieve(query) {
       const intent = parseQuery(query);
       if (intent.vague || (intent.wantWhere && !intent.object && intent.event !== "lend")) {
         return { intent, results: [], current: null, history: [], unsure: true };
       }
+
+      if (intent.object) {
+        const resolution = resolveQueryEntity(intent.object);
+        if (resolution.status === "ambiguous") {
+          return {
+            intent,
+            results: [],
+            current: null,
+            history: [],
+            ambiguous: resolution.candidates,
+          };
+        }
+      }
+
       if (intent.focus === "history" && intent.object) {
         const hist = memories
-          .filter((m) => m.object && objectsMatch(m.object, intent.object) && m.isCurrent === false)
+          .filter((m) => m.object && sameEntity(m.object, intent.object) && m.isCurrent === false)
           .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
         return {
           intent,
@@ -999,7 +1110,7 @@
           .filter(
             (m) =>
               m.object &&
-              objectsMatch(m.object, intent.object) &&
+              sameEntity(m.object, intent.object) &&
               isYesterday(m.timestamp, m.originalText)
           )
           .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
@@ -1055,7 +1166,10 @@
       return "";
     }
 
-    function makeAnswer(intent, results, current) {
+    function makeAnswer(intent, results, current, meta) {
+      if (meta && meta.ambiguous && meta.ambiguous.length) {
+        return disambiguateAsk(meta.ambiguous);
+      }
       if (intent && intent.vague) {
         if (intent.raw && /它/.test(intent.raw) && !/其它|其他/.test(intent.raw)) return ASK_IT;
         return ASK_THING;
@@ -1136,8 +1250,12 @@
       if (emptyHint && emptyHint.parentNode) emptyHint.remove();
     }
 
+    // 同一用户回合只允许一条 AI 回复，防止双 submit / 异步重复 append 造成 Clarify 翻倍。
+    let aiRepliedForTurn = false;
+
     function appendUser(text) {
       clearEmptyHint();
+      aiRepliedForTurn = false;
       const el = document.createElement("div");
       el.className = "msg user";
       el.innerHTML = `<div class="bubble">${escapeHtml(text)}</div>`;
@@ -1146,12 +1264,15 @@
     }
 
     function appendAi(htmlInner) {
+      if (aiRepliedForTurn) return false;
+      aiRepliedForTurn = true;
       clearEmptyHint();
       const el = document.createElement("div");
       el.className = "msg ai";
       el.innerHTML = htmlInner;
       thread.appendChild(el);
       thread.scrollTop = thread.scrollHeight;
+      return true;
     }
 
     function personLabel(m) {
@@ -1294,15 +1415,18 @@
 
     function runQuery(q) {
       appendUser(q);
-      const { intent, results, current, history, unsure } = retrieve(q);
-      const answer = makeAnswer(intent, results, current) || UNSURE;
+      const retrieved = retrieve(q);
+      const { intent, results, current, unsure, ambiguous } = retrieved;
+      const answer =
+        makeAnswer(intent, results, current, { ambiguous }) || UNSURE;
       const evidence = results && results[0] ? results[0] : null;
       const isClarify =
         unsure ||
+        Boolean(ambiguous && ambiguous.length) ||
         intent.vague ||
-        /哪一件|不确定|指的是/.test(answer);
+        /哪一件|不确定|指的是|你是指/.test(answer);
       // 同一条输入只渲染一次：Clarify 走 clarifyCardHtml；否则走 Answer。
-      if (isClarify && (!evidence || evidence.uncertain || intent.vague)) {
+      if (isClarify && (!evidence || evidence.uncertain || intent.vague || (ambiguous && ambiguous.length))) {
         appendAi(clarifyCardHtml(answer));
       } else {
         appendAi(answerBlockHtml(answer, evidence && !evidence.uncertain ? evidence : null));
@@ -1316,6 +1440,7 @@
     const voiceDraft = document.getElementById("voiceDraft");
     const voiceRetryBtn = document.getElementById("voiceRetry");
     const voiceConfirmBtn = document.getElementById("voiceConfirm");
+    const voiceCancelBtn = document.getElementById("voiceCancel");
     const btnSend = document.getElementById("btnSend");
 
     function setVoiceDraftActive(on) {
@@ -1325,6 +1450,24 @@
 
     function dismissVoiceDraft() {
       setVoiceDraftActive(false);
+    }
+
+    function cancelVoiceDraft() {
+      // 取消：清空草稿，不进入 Understanding，不写 Memory。
+      input.value = "";
+      dismissVoiceDraft();
+      errorEl.textContent = "";
+      if (listening && recognition) {
+        try {
+          recognition.stop();
+        } catch (_e) {
+          /* ignore */
+        }
+      }
+    }
+
+    function getComposerText() {
+      return String(input.value || "").trim();
     }
 
     form.addEventListener("submit", async (e) => {
@@ -1498,9 +1641,13 @@
         setTimeout(() => startListening(), 120);
       });
 
+      voiceCancelBtn?.addEventListener("click", () => {
+        cancelVoiceDraft();
+      });
+
       voiceConfirmBtn?.addEventListener("click", () => {
         // 确认发送：以输入框当前（可编辑）文本作为最终输入。
-        const text = input.value.trim();
+        const text = getComposerText();
         if (!text) {
           errorEl.textContent = "请先确认或编辑识别结果。";
           return;
@@ -1509,7 +1656,7 @@
       });
     }
 
-    // 用户手动编辑后仍可用原「发送」；开始打字时保留草稿条直到发送/重录。
+    // 用户手动清空输入时关闭草稿条；取消/重录不会写 Memory。
     input.addEventListener("input", () => {
       if (voiceDraftActive && !input.value.trim()) dismissVoiceDraft();
     });

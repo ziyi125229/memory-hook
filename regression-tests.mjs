@@ -3,7 +3,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const html = fs.readFileSync(path.join(__dirname, "memory-plugin-demo.html"), "utf8");
+const htmlPath = path.join(__dirname, "memory-plugin-demo.html");
+const html = fs.readFileSync(htmlPath, "utf8");
 const script = html.match(/<script>([\s\S]*)<\/script>/)[1];
 
 const store = {};
@@ -13,7 +14,9 @@ globalThis.localStorage = {
     store[k] = String(v);
   },
 };
-function el() {
+
+const threadChildren = [];
+function el(extra = {}) {
   return {
     addEventListener() {},
     innerHTML: "",
@@ -27,24 +30,34 @@ function el() {
     closest() {
       return null;
     },
-    appendChild() {},
+    appendChild(child) {
+      threadChildren.push(child);
+    },
     remove() {},
-    parentNode: null,
+    parentNode: { removeChild() {} },
     focus() {},
     setSelectionRange() {},
     getAttribute() {
       return null;
     },
+    ...extra,
   };
 }
 const els = {};
 globalThis.document = {
   getElementById(id) {
-    if (!els[id]) els[id] = el();
+    if (!els[id]) {
+      els[id] = el(id === "thread" ? { children: threadChildren } : {});
+      if (id === "thread") {
+        els[id].appendChild = (child) => {
+          threadChildren.push(child);
+        };
+      }
+    }
     return els[id];
   },
-  createElement() {
-    return el();
+  createElement(tag) {
+    return el({ tagName: tag });
   },
 };
 globalThis.window = globalThis;
@@ -61,12 +74,25 @@ eval(
   looksLikeQuery,
   clarifyCardHtml,
   captureAsk,
+  appendUser,
+  appendAi,
+  enterVoiceDraft,
+  cancelVoiceDraft,
+  dismissVoiceDraft,
+  getComposerText,
   ASK_IT,
   ASK_THING,
+  get memories() { return memories; },
+  get input() { return document.getElementById("memory"); },
+  get voiceDraftActive() { return voiceDraftActive; },
   reset() {
     memories.length = 0;
     currentState = {};
     store["memory-hook-v16"] = JSON.stringify([]);
+    threadChildren.length = 0;
+    aiRepliedForTurn = false;
+    voiceDraftActive = false;
+    document.getElementById("memory").value = "";
   },
   record(text) {
     const list = parseMemories(text);
@@ -77,9 +103,10 @@ eval(
   ask(q) {
     const r = retrieve(q);
     return {
-      answer: makeAnswer(r.intent, r.results, r.current) || "",
+      answer: makeAnswer(r.intent, r.results, r.current, { ambiguous: r.ambiguous }) || "",
       intent: r.intent,
       current: r.current,
+      ambiguous: r.ambiguous || null,
     };
   },
 };`
@@ -91,6 +118,9 @@ function wait() {
 }
 function has(a, e) {
   return String(a).replace(/\s/g, "").includes(String(e).replace(/\s/g, ""));
+}
+function count(re, s) {
+  return (String(s).match(re) || []).length;
 }
 
 function run(id, inputs, query, check) {
@@ -104,7 +134,10 @@ function run(id, inputs, query, check) {
   return { id, pass: check(got, parsed), answer: got.answer, parsed, current: got.current };
 }
 
-const checks = [
+const results = [];
+
+// ---------- V1.6.1 baseline (01-20) ----------
+const baseline = [
   ["01", ["我的钥匙放在玄关柜上了。"], "我的钥匙在哪？", (g) => has(g.answer, "玄关柜")],
   [
     "02",
@@ -210,92 +243,217 @@ const checks = [
     "那个东西在哪？",
     (g, p) => p[0].uncertain && /不确定|哪件|足够/.test(g.answer),
   ],
-
-  // New: possession transfer
-  [
-    "21-possession-passive",
-    ["护照被妈妈拿走了"],
-    "我的护照在哪？",
-    (g, p) =>
-      p[0].object === "护照" &&
-      p[0].person === "妈妈" &&
-      p[0].event === "possession_transfer" &&
-      p[0].status === "with_person" &&
-      has(g.answer, "妈妈那里") &&
-      !has(g.answer, "借给"),
-  ],
-  [
-    "22-possession-active",
-    ["妈妈拿走我的护照了"],
-    "我的护照在哪？",
-    (g, p) =>
-      p[0].object === "护照" &&
-      p[0].person === "妈妈" &&
-      p[0].event === "possession_transfer" &&
-      has(g.answer, "妈妈那里"),
-  ],
-  [
-    "23-possession-agent",
-    ["小王把充电宝拿走了"],
-    "充电宝现在在哪？",
-    (g, p) =>
-      p[0].object === "充电宝" &&
-      p[0].person === "小王" &&
-      p[0].event === "possession_transfer" &&
-      p[0].status === "with_person" &&
-      has(g.answer, "小王那里") &&
-      !has(g.answer, "借给"),
-  ],
-  [
-    "24-lend-vs-take",
-    ["我把充电宝借给小王了"],
-    "充电宝现在在哪？",
-    (g, p) =>
-      p[0].event === "lend" &&
-      p[0].status === "lent" &&
-      has(g.answer, "借给小王") &&
-      !has(g.answer, "那里"),
-  ],
 ];
+for (const c of baseline) results.push(run(...c));
 
-const R = checks.map((c) => run(...c));
+// ---------- Possession Transfer ----------
+results.push(
+  run("P1-护照被妈妈拿走了", ["护照被妈妈拿走了"], "我的护照在哪？", (g, p) =>
+    p[0].object === "护照" &&
+    p[0].person === "妈妈" &&
+    p[0].event === "possession_transfer" &&
+    p[0].status === "with_person" &&
+    has(g.answer, "妈妈那里") &&
+    !has(g.answer, "借给")
+  )
+);
+results.push(
+  run("P2-妈妈拿走我的护照了", ["妈妈拿走我的护照了"], "我的护照在哪？", (g, p) =>
+    p[0].object === "护照" &&
+    p[0].person === "妈妈" &&
+    p[0].event === "possession_transfer" &&
+    has(g.answer, "妈妈那里")
+  )
+);
+results.push(
+  run("P3-小王把充电宝拿走了", ["小王把充电宝拿走了"], "充电宝现在在哪？", (g, p) =>
+    p[0].object === "充电宝" &&
+    p[0].person === "小王" &&
+    p[0].event === "possession_transfer" &&
+    p[0].status === "with_person" &&
+    has(g.answer, "小王那里") &&
+    !has(g.answer, "借给")
+  )
+);
+results.push(
+  run("P4-充电宝被小王拿走了", ["充电宝被小王拿走了"], "充电宝现在在哪？", (g, p) =>
+    p[0].object === "充电宝" &&
+    p[0].person === "小王" &&
+    p[0].event === "possession_transfer" &&
+    has(g.answer, "小王那里")
+  )
+);
+results.push(
+  run("P5-借给仍是lending", ["我把充电宝借给小王了"], "充电宝现在在哪？", (g, p) =>
+    p[0].event === "lend" &&
+    p[0].type === "lending" &&
+    p[0].status === "lent" &&
+    has(g.answer, "借给小王") &&
+    !has(g.answer, "那里")
+  )
+);
 
-// Clarify: one bubble + one clarify-card; ask text not duplicated in card body
-function count(re, s) {
-  return (String(s).match(re) || []).length;
+// ---------- Voice Draft ----------
+{
+  MH.reset();
+  const onresultBlock = script.slice(
+    script.indexOf("recognition.onresult"),
+    script.indexOf("recognition.onerror")
+  );
+  const noAutoSubmit =
+    !/requestSubmit\(/.test(onresultBlock) && /enterVoiceDraft/.test(onresultBlock);
+  results.push({
+    id: "V1-语音不自动提交",
+    pass: noAutoSubmit,
+    answer: noAutoSubmit ? "draft only" : "autosubmit still present",
+  });
 }
-const clarifyHtml = MH.clarifyCardHtml(MH.ASK_IT);
-const clarifyPass =
-  count(/class="bubble"/g, clarifyHtml) === 1 &&
-  count(/clarify-card/g, clarifyHtml) === 1 &&
-  count(/CLARIFY/g, clarifyHtml) === 1 &&
-  count(/我可以帮你记/g, clarifyHtml) === 1 &&
-  !/我可以帮你记/.test(clarifyHtml.split("clarify-card")[1] || "");
+{
+  MH.reset();
+  MH.enterVoiceDraft("护照被妈妈拿走了");
+  const pass =
+    MH.input.value === "护照被妈妈拿走了" && MH.voiceDraftActive === true && MH.memories.length === 0;
+  results.push({
+    id: "V2-识别进入Composer",
+    pass,
+    answer: pass ? MH.input.value : `value=${MH.input.value} draft=${MH.voiceDraftActive}`,
+  });
+}
+{
+  MH.reset();
+  MH.enterVoiceDraft("护照被妈妈拿走了");
+  MH.input.value = "我把钥匙放到玄关柜了"; // 用户修改
+  const finalText = MH.getComposerText();
+  const pass = finalText === "我把钥匙放到玄关柜了" && MH.memories.length === 0;
+  results.push({
+    id: "V3-最终发送用修改后文字",
+    pass,
+    answer: pass ? finalText : finalText,
+  });
+}
+{
+  MH.reset();
+  const before = MH.memories.length;
+  MH.enterVoiceDraft("护照被妈妈拿走了");
+  // 重新录音语义：清空草稿、不写 Memory（不调用 record）
+  MH.input.value = "";
+  MH.dismissVoiceDraft();
+  const pass = MH.memories.length === before && MH.memories.length === 0 && !MH.voiceDraftActive;
+  results.push({
+    id: "V4-重新录音不产生Memory",
+    pass,
+    answer: pass ? "no memory" : `mem=${MH.memories.length}`,
+  });
+}
+{
+  MH.reset();
+  MH.enterVoiceDraft("错误识别内容");
+  MH.cancelVoiceDraft();
+  const pass =
+    MH.memories.length === 0 && MH.input.value === "" && MH.voiceDraftActive === false;
+  results.push({
+    id: "V5-取消不产生Memory",
+    pass,
+    answer: pass ? "cancelled" : `mem=${MH.memories.length} value=${MH.input.value}`,
+  });
+}
 
-R.push({
-  id: "25-clarify-once",
-  pass: clarifyPass,
-  answer: clarifyPass ? "one bubble + one card" : clarifyHtml,
+// ---------- Clarify once ----------
+{
+  const clarifyHtml = MH.clarifyCardHtml(MH.ASK_THING);
+  const askHits = count(/我还不确定你指的是哪件东西/g, clarifyHtml);
+  const bubbleHits = count(/class="bubble"/g, clarifyHtml);
+  const cardHits = count(/clarify-card/g, clarifyHtml);
+  const pass = askHits === 1 && bubbleHits === 1 && cardHits === 1;
+  results.push({
+    id: "C1-Clarify模板不重复追问",
+    pass,
+    answer: pass ? "1 bubble + 1 card" : clarifyHtml,
+  });
+}
+{
+  MH.reset();
+  threadChildren.length = 0;
+  MH.appendUser("那个东西应该还在我昨天放的地方。");
+  const html1 = MH.clarifyCardHtml(MH.captureAsk("那个东西应该还在我昨天放的地方。"));
+  MH.appendAi(html1);
+  const firstCount = threadChildren.filter((c) => c.className === "msg ai").length;
+  // 模拟重复回调
+  MH.appendAi(html1);
+  const secondCount = threadChildren.filter((c) => c.className === "msg ai").length;
+  const lastHtml = threadChildren.filter((c) => c.className === "msg ai").pop()?.innerHTML || "";
+  const pass =
+    firstCount === 1 &&
+    secondCount === 1 &&
+    count(/class="bubble"/g, lastHtml) === 1 &&
+    count(/clarify-card/g, lastHtml) === 1;
+results.push({
+  id: "C2-同一回合Clarify只append一次",
+  pass,
+  answer: pass ? `aiMsgs=${secondCount}` : `aiMsgs=${secondCount} html=${lastHtml}`,
 });
+}
 
-// Voice flow source guard: recognition must not auto-submit
-const voiceBlock = script.slice(script.indexOf("recognition.onresult"));
-const onresultBlock = voiceBlock.slice(0, voiceBlock.indexOf("recognition.onerror"));
-const voicePass =
-  /enterVoiceDraft|setVoiceDraftActive\(true\)|voiceDraft/.test(onresultBlock) &&
-  !/requestSubmit\(/.test(onresultBlock) &&
-  /voiceRetry/.test(script) &&
-  /voiceConfirm/.test(script) &&
-  /确认发送/.test(html) &&
-  /重新录音/.test(html);
+// ---------- Entity Resolution E1-E6 ----------
+results.push(
+  run(
+    "E1-bare优先于红色钥匙",
+    ["钥匙放茶几。", "我把钥匙拿到玄关柜了。", "红色钥匙在茶几底下。"],
+    "我的钥匙在哪？",
+    (g, p) =>
+      has(g.answer, "玄关柜") &&
+      !has(g.answer, "茶几底下") &&
+      !has(g.answer, "红色钥匙") &&
+      p.filter((m) => m.object === "钥匙").length >= 2 &&
+      p.some((m) => m.object === "红色钥匙")
+  )
+);
+results.push(
+  run(
+    "E2-红色钥匙精确命中",
+    ["钥匙放茶几。", "我把钥匙拿到玄关柜了。", "红色钥匙在茶几底下。"],
+    "红色钥匙在哪？",
+    (g) => has(g.answer, "茶几底下") && has(g.answer, "红色钥匙")
+  )
+);
+results.push(
+  run(
+    "E3-多属性消歧Clarify",
+    ["黑色钥匙放书桌。", "红色钥匙放茶几。"],
+    "钥匙在哪？",
+    (g) =>
+      /你是指/.test(g.answer) &&
+      has(g.answer, "黑色钥匙") &&
+      has(g.answer, "红色钥匙") &&
+      !has(g.answer, "现在在")
+  )
+);
+results.push(
+  run(
+    "E4-车钥匙不覆盖钥匙",
+    ["钥匙放玄关柜。", "车钥匙放卧室。"],
+    "钥匙在哪？",
+    (g) => has(g.answer, "玄关柜") && !has(g.answer, "卧室") && !has(g.answer, "车钥匙")
+  )
+);
+results.push(
+  run(
+    "E5-属性精确命中",
+    ["红色钥匙放茶几。", "黑色钥匙放书桌。"],
+    "红色钥匙在哪？",
+    (g) => has(g.answer, "茶几") && !has(g.answer, "书桌")
+  )
+);
+results.push(
+  run(
+    "E6-历史不混入红色钥匙",
+    ["钥匙放茶几。", "钥匙拿到玄关柜了。", "红色钥匙放书桌。"],
+    "钥匙以前在哪？",
+    (g) => has(g.answer, "以前") && has(g.answer, "茶几") && !has(g.answer, "书桌")
+  )
+);
 
-R.push({
-  id: "26-voice-no-autosubmit",
-  pass: voicePass,
-  answer: voicePass ? "draft then confirm" : "voice auto-submit still present",
-});
-
-R.forEach((c) => {
+results.forEach((c) => {
   console.log(c.id, c.pass ? "PASS" : "FAIL", c.answer || "");
   if (!c.pass && c.parsed) {
     console.log(
@@ -313,6 +471,10 @@ R.forEach((c) => {
   }
 });
 
-const passed = R.filter((c) => c.pass).length;
-console.log("COUNT", `${passed}/${R.length}`);
-process.exit(passed === R.length ? 0 : 1);
+const passed = results.filter((c) => c.pass).length;
+const basePass = results.slice(0, 20).filter((c) => c.pass).length;
+const newPass = results.slice(20).filter((c) => c.pass).length;
+console.log("BASELINE", `${basePass}/20`);
+console.log("NEW", `${newPass}/${results.length - 20}`);
+console.log("COUNT", `${passed}/${results.length}`);
+process.exit(passed === results.length ? 0 : 1);
