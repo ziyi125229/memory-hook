@@ -6,7 +6,7 @@
 
 让用户拥有一个随时可调用的个人记忆层。
 
-**Latest Release:** [v1.6.1](https://github.com/ziyi125229/memory-hook/releases/tag/v1.6.1)
+**Latest Release:** [v1.6.2](https://github.com/ziyi125229/memory-hook/releases/tag/v1.6.2)
 
 ## Demo
 
@@ -95,12 +95,13 @@ History: 钥匙 → 茶几
 | **V1.0** | 验证记录闭环 | 文本 / 语音记录、时间轴、关键词搜索 |
 | **V1.5** | 从记录工具到 Memory System | Schema、持久化、自然语言检索、State Resolution |
 | **V1.6.1** | AI Memory Assistant 体验 | 「好的，我记住了」、confidence、Uncertainty Guard、Current/History 查询 |
+| **V1.6.2** | Memory Reliability 封板 | Showcase UI、Voice Draft/Confirm、possession_transfer、Clarify 防重入、Entity Resolution |
 
 ---
 
 ## Evaluation
 
-用 **20 条真实生活语料** 做回归测试（Bad Case 驱动）。
+用 **20 条真实生活语料** 做基线回归，并扩展可靠性用例（Voice / Possession / Clarify / Entity）。
 
 测试集来自真实生活表达场景，用于验证 AI Memory 理解能力和可靠性。
 
@@ -108,8 +109,9 @@ History: 钥匙 → 茶几
 | --- | --- | --- |
 | V1.5 | 13 / 20 | **65%** |
 | V1.6.1 | 20 / 20 | **100%** |
+| V1.6.2 | 38 / 38（含基线 20 + 可靠性 18） | **100%** |
 
-覆盖：复杂位置、同义词、状态更新、借出/归还、历史查询、不确定信息不胡答、多实体与属性区分。
+覆盖：复杂位置、同义词、状态更新、借出/归还、历史查询、不确定信息不胡答、多实体与属性区分、语音确认、possession transfer、实体消歧。
 
 ---
 
@@ -167,4 +169,5 @@ Retrieval & Answer
 ## Project
 
 - GitHub: https://github.com/ziyi125229/memory-hook
-- Release: [Memory Hook v1.6.1](https://github.com/ziyi125229/memory-hook/releases/tag/v1.6.1)
+- Demo: https://memory-hook.vercel.app
+- Release: [Memory Hook v1.6.2](https://github.com/ziyi125229/memory-hook/releases/tag/v1.6.2)
