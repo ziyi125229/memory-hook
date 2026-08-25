@@ -80,6 +80,46 @@
       line-height: 1.7;
       padding: 40px 12px;
     }
+    .empty-hint .try-label {
+      margin: 0 0 12px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 4px;
+    }
+    .chip {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .chip:hover {
+      background: var(--accent-soft);
+      border-color: #d5d1c8;
+    }
+    .answer-card .evidence {
+      margin-top: 0;
+      padding-top: 0;
+      border-top: 0;
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    .answer-card .evidence .meta {
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      margin-bottom: 6px;
+    }
     .msg {
       display: flex;
       flex-direction: column;
@@ -131,11 +171,6 @@
     .clarify-card {
       border-color: rgba(154, 91, 26, 0.25);
       background: #fffaf4;
-    }
-    .answer-card strong {
-      display: block;
-      font-size: 16px;
-      margin-bottom: 8px;
     }
     .evidence {
       margin-top: 8px;
@@ -283,8 +318,12 @@
     <section class="stage">
       <div class="thread" id="thread">
         <div class="empty-hint" id="emptyHint">
-          说一句要记住的事，或直接问我。<br />
-          例如：我把红色钥匙放到客厅茶几下面抽屉里了。
+          <p class="try-label">试试：</p>
+          <div class="chips" id="exampleChips">
+            <button type="button" class="chip" data-text="我把红色钥匙放到客厅茶几下面抽屉里了。">记住我的钥匙</button>
+            <button type="button" class="chip" data-text="我把钥匙拿到玄关柜了。">更新物品位置</button>
+            <button type="button" class="chip" data-text="我的钥匙在哪？">我的钥匙在哪？</button>
+          </div>
         </div>
       </div>
 
@@ -1069,16 +1108,17 @@
     }
 
     function answerBlockHtml(answer, evidenceMem) {
-      let evidence = "";
+      let card = "";
       if (evidenceMem) {
-        evidence = `<div class="evidence">最近记录 · ${escapeHtml(relativeTime(evidenceMem.timestamp))}<br/>“${escapeHtml(evidenceMem.originalText)}”</div>`;
-      }
-      return `<div class="bubble">${escapeHtml(answer)}</div>
-        <div class="answer-card">
+        card = `<div class="answer-card">
           <div class="title">ANSWER</div>
-          <strong>${escapeHtml(answer)}</strong>
-          ${evidence}
+          <div class="evidence">
+            <div class="meta">最近记录 · ${escapeHtml(relativeTime(evidenceMem.timestamp))}</div>
+            “${escapeHtml(evidenceMem.originalText)}”
+          </div>
         </div>`;
+      }
+      return `<div class="bubble">${escapeHtml(answer)}</div>${card}`;
     }
 
     function findPrevStateSnapshot(object, snapshot) {
@@ -1203,6 +1243,15 @@
         appendAi(`<div class="bubble">好的，我记住了。</div>${cards}`);
       }
       render();
+    });
+
+    document.getElementById("exampleChips")?.addEventListener("click", (e) => {
+      const chip = e.target.closest(".chip");
+      if (!chip) return;
+      const text = chip.getAttribute("data-text") || "";
+      if (!text) return;
+      input.value = text;
+      form.requestSubmit();
     });
 
     render();
