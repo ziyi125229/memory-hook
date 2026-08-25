@@ -230,6 +230,35 @@
       border-color: #991b1b !important;
       animation: pulse 1.2s ease-in-out infinite;
     }
+    .voice-draft {
+      display: none;
+      margin-top: 10px;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fff;
+    }
+    .voice-draft.active { display: block; }
+    .voice-draft .hint {
+      margin: 0 0 10px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .voice-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .btn-voice-retry {
+      background: #fff;
+      color: var(--text);
+      border: 1px solid var(--line) !important;
+    }
+    .btn-voice-confirm {
+      background: var(--accent);
+      color: #faf9f6;
+    }
     .error {
       min-height: 1.2em;
       margin: 8px 2px 0;
@@ -331,7 +360,14 @@
         <div class="composer-row">
           <input id="memory" type="text" placeholder="说点什么，或问我：我的钥匙在哪？" autocomplete="off" />
           <button type="button" class="btn-mic" id="mic" title="语音输入">🎙</button>
-          <button type="submit" class="btn-send">发送</button>
+          <button type="submit" class="btn-send" id="btnSend">发送</button>
+        </div>
+        <div class="voice-draft" id="voiceDraft">
+          <p class="hint">语音识别结果已填入输入框，可先编辑再确认发送。</p>
+          <div class="voice-actions">
+            <button type="button" class="btn-voice-retry" id="voiceRetry">重新录音</button>
+            <button type="button" class="btn-voice-confirm" id="voiceConfirm">确认发送</button>
+          </div>
         </div>
         <p class="error" id="error"></p>
       </form>
@@ -515,10 +551,36 @@
 
     // Parsing Layer：规则解析，失败则退回 general
     let currentState = {};
-    const STATE_EVENTS = ["place", "move", "lend", "return"];
+    const STATE_EVENTS = ["place", "move", "lend", "return", "possession_transfer"];
 
     function makeMemory(base, extra) {
       return { ...base, id: uid(), ...extra };
+    }
+
+    function finishPossession(base, objectRaw, personRaw) {
+      const objects = splitObjects(objectRaw);
+      const person = String(personRaw || "")
+        .replace(/了$/g, "")
+        .replace(/^的/, "")
+        .trim();
+      if (!person || !objects.length || objects.every(isVagueObject)) {
+        return [makeMemory(base, { type: "general", uncertain: true, confidence: 0.2, source: "rule" })];
+      }
+      return objects
+        .filter((o) => !isVagueObject(o))
+        .map((object) =>
+          makeMemory(base, {
+            type: "possession",
+            object,
+            person,
+            event: "possession_transfer",
+            status: "with_person",
+            location: null,
+            uncertain: false,
+            confidence: 0.92,
+            source: "rule",
+          })
+        );
     }
 
     function parseMemories(originalText) {
@@ -607,6 +669,23 @@
             source: "rule",
           })
         );
+      }
+
+      // possession transfer：拿走 ≠ 借给
+      // 小王把充电宝拿走了
+      const takeByAgent = s.match(/^(.+?)把(.+?)拿走了?$/);
+      if (takeByAgent && !/借给/.test(s)) {
+        return finishPossession(base, takeByAgent[2], takeByAgent[1]);
+      }
+      // 护照被妈妈拿走了
+      const takePassive = s.match(/^(.+?)被(.+?)拿走了?$/);
+      if (takePassive && !/借给/.test(s)) {
+        return finishPossession(base, takePassive[1], takePassive[2]);
+      }
+      // 妈妈拿走我的护照了 / 妈妈拿走护照了
+      const takeActive = s.match(/^(.+?)拿走(?:了)?(?:我的)?(.+?)了?$/);
+      if (takeActive && !/借给/.test(s) && !/^把/.test(s)) {
+        return finishPossession(base, takeActive[2], takeActive[1]);
       }
 
       if (/在哪|借给谁|什么了|哪些/.test(s)) {
@@ -736,7 +815,7 @@
         currentState[key] = {
           object: m.object,
           location: m.location,
-          person: m.event === "lend" ? m.person : null,
+          person: m.event === "lend" || m.event === "possession_transfer" ? m.person : null,
           event: m.event,
           status: m.status,
           memoryId: m.id,
@@ -967,6 +1046,9 @@
       if (state.status === "lent" && state.person) {
         return `你的${obj}${prefix}借给${state.person}了。`;
       }
+      if ((state.status === "with_person" || state.event === "possession_transfer") && state.person) {
+        return `你的${obj}${prefix}在${state.person}那里。`;
+      }
       if (state.location) {
         return `你的${obj}${prefix}在${locationAnswer(state.location)}。`;
       }
@@ -1011,6 +1093,9 @@
       }
       if (m.type === "lending" && m.object && m.person) {
         return `你的${m.object}现在借给${m.person}了。`;
+      }
+      if ((m.type === "possession" || m.event === "possession_transfer") && m.object && m.person) {
+        return `你的${m.object}现在在${m.person}那里。`;
       }
       if (intent.wantWhere) {
         return intent.object ? `我目前没有记住${intent.object}的位置。` : UNSURE;
@@ -1069,16 +1154,28 @@
       thread.scrollTop = thread.scrollHeight;
     }
 
+    function personLabel(m) {
+      if (!m || !m.person) return "";
+      if (m.status === "lent" || m.event === "lend" || m.type === "lending") {
+        return `借给：${m.person}`;
+      }
+      if (m.status === "with_person" || m.event === "possession_transfer" || m.type === "possession") {
+        return `在 ${m.person} 那里`;
+      }
+      return m.person;
+    }
+
     function memoryCardHtml(m) {
       const rows = [];
       rows.push(`<div class="row">${objectEmoji(m.object)} ${escapeHtml(m.object)}</div>`);
       if (m.location) rows.push(`<div class="row">📍 ${escapeHtml(locationPath(m.location))}</div>`);
-      if (m.person) rows.push(`<div class="row">👤 借给：${escapeHtml(m.person)}</div>`);
+      if (m.person) rows.push(`<div class="row">👤 ${escapeHtml(personLabel(m))}</div>`);
       rows.push(`<div class="row">🕐 ${escapeHtml(relativeTime(m.timestamp) || "刚刚")}</div>`);
       return `<div class="memory-card"><div class="title">MEMORY</div>${rows.join("")}</div>`;
     }
 
     function clarifyCardHtml(text) {
+      // 单次 Clarify：一条 AI bubble + 一张 Clarify Card，不把同一句追问再写进卡片。
       return `<div class="bubble">${escapeHtml(text)}</div>
         <div class="clarify-card">
           <div class="title">CLARIFY</div>
@@ -1086,13 +1183,34 @@
         </div>`;
     }
 
+    function formatPersonLoc(memOrState) {
+      if (!memOrState || !memOrState.person) return "";
+      if (memOrState.status === "lent" || memOrState.event === "lend") return `借给${memOrState.person}`;
+      if (memOrState.status === "with_person" || memOrState.event === "possession_transfer") {
+        return `${memOrState.person}那里`;
+      }
+      return memOrState.person;
+    }
+
     function stateDiffHtml(prev, next) {
-      const oldLoc = prev && prev.location ? locationAnswer(prev.location) : (prev && prev.person ? `借给${prev.person}` : "未知");
-      const newLoc = next.location ? locationAnswer(next.location) : (next.person ? `借给${next.person}` : "未知");
+      const oldLoc = prev && prev.location
+        ? locationAnswer(prev.location)
+        : prev && prev.person
+        ? formatPersonLoc(prev)
+        : "未知";
+      const newLoc = next.location
+        ? locationAnswer(next.location)
+        : next.person
+        ? formatPersonLoc(next)
+        : "未知";
       const hist = historyForObject(next.object, next.id)
         .slice(0, 3)
         .map((h) => {
-          const loc = h.location ? locationAnswer(h.location) : (h.person ? `借给${h.person}` : "");
+          const loc = h.location
+            ? locationAnswer(h.location)
+            : h.person
+            ? formatPersonLoc(h)
+            : "";
           return `<div class="muted">· ${escapeHtml(h.object)} → ${escapeHtml(loc)}</div>`;
         })
         .join("");
@@ -1147,7 +1265,7 @@
           const loc = m.location
             ? locationPath(m.location)
             : m.person
-            ? `借给 ${m.person}`
+            ? formatPersonLoc(m)
             : "—";
           return `<li class="shelf-item">
             <div class="top"><span>${objectEmoji(m.object)} ${escapeHtml(m.object)}</span><span class="meta">${escapeHtml(relativeTime(m.timestamp))}</span></div>
@@ -1162,7 +1280,7 @@
               const loc = m.location
                 ? locationAnswer(m.location)
                 : m.person
-                ? `借给${m.person}`
+                ? formatPersonLoc(m)
                 : "";
               return `<li class="hist-item">${escapeHtml(m.object)} → ${escapeHtml(loc)} · ${escapeHtml(relativeTime(m.timestamp))}</li>`;
             })
@@ -1183,6 +1301,7 @@
         unsure ||
         intent.vague ||
         /哪一件|不确定|指的是/.test(answer);
+      // 同一条输入只渲染一次：Clarify 走 clarifyCardHtml；否则走 Answer。
       if (isClarify && (!evidence || evidence.uncertain || intent.vague)) {
         appendAi(clarifyCardHtml(answer));
       } else {
@@ -1191,58 +1310,85 @@
       render();
     }
 
+    let submitting = false;
+    let voiceDraftActive = false;
+
+    const voiceDraft = document.getElementById("voiceDraft");
+    const voiceRetryBtn = document.getElementById("voiceRetry");
+    const voiceConfirmBtn = document.getElementById("voiceConfirm");
+    const btnSend = document.getElementById("btnSend");
+
+    function setVoiceDraftActive(on) {
+      voiceDraftActive = Boolean(on);
+      if (voiceDraft) voiceDraft.classList.toggle("active", voiceDraftActive);
+    }
+
+    function dismissVoiceDraft() {
+      setVoiceDraftActive(false);
+    }
+
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
+      if (submitting) return;
       errorEl.textContent = "";
       const text = input.value.trim();
       if (!text) {
         errorEl.textContent = "先说一句要记住的话，或问我一个问题。";
         return;
       }
-      if (looksLikeQuery(text)) {
-        input.value = "";
-        runQuery(text);
-        return;
-      }
-
-      appendUser(text);
-      const beforeState = JSON.parse(JSON.stringify(currentState || {}));
-      const list = await understandMemories(text);
-      list.forEach((memory) => memories.unshift(memory));
-      resolveStates();
-      persist();
-      input.value = "";
-
-      const first = list[0];
-      if (!first || first.uncertain || list.every((m) => m.uncertain || !m.object)) {
-        appendAi(clarifyCardHtml(captureAsk(first && first.originalText)));
-        render();
-        return;
-      }
-
-      // State Diff: same object had a previous current location/person
-      let diffShown = false;
-      for (const m of list.filter((x) => x.object && !x.uncertain)) {
-        const prev = findPrevStateSnapshot(m.object, beforeState);
-        if (!prev) continue;
-        const prevLoc = prev.location ? locationAnswer(prev.location) : "";
-        const nextLoc = m.location ? locationAnswer(m.location) : "";
-        const locChanged = prevLoc && nextLoc && prevLoc !== nextLoc;
-        const lendChanged = prev.status !== m.status || prev.person !== m.person;
-        if (locChanged || lendChanged) {
-          appendAi(stateDiffHtml(prev, m));
-          diffShown = true;
-          break;
+      // 键盘/文本发送与「确认发送」共用此路径；进入理解前先关闭语音草稿态。
+      dismissVoiceDraft();
+      submitting = true;
+      try {
+        if (looksLikeQuery(text)) {
+          input.value = "";
+          runQuery(text);
+          return;
         }
+
+        appendUser(text);
+        const beforeState = JSON.parse(JSON.stringify(currentState || {}));
+        const list = await understandMemories(text);
+        list.forEach((memory) => memories.unshift(memory));
+        resolveStates();
+        persist();
+        input.value = "";
+
+        const first = list[0];
+        if (!first || first.uncertain || list.every((m) => m.uncertain || !m.object)) {
+          appendAi(clarifyCardHtml(captureAsk(first && first.originalText)));
+          render();
+          return;
+        }
+
+        let diffShown = false;
+        for (const m of list.filter((x) => x.object && !x.uncertain)) {
+          const prev = findPrevStateSnapshot(m.object, beforeState);
+          if (!prev) continue;
+          const prevLoc = prev.location ? locationAnswer(prev.location) : "";
+          const nextLoc = m.location ? locationAnswer(m.location) : "";
+          const locChanged = prevLoc && nextLoc && prevLoc !== nextLoc;
+          const personChanged =
+            (prev.person || "") !== (m.person || "") ||
+            (prev.status || "") !== (m.status || "");
+          const lendChanged = prev.status !== m.status || prev.person !== m.person;
+          if (locChanged || lendChanged || personChanged) {
+            appendAi(stateDiffHtml(prev, m));
+            diffShown = true;
+            break;
+          }
+        }
+        if (!diffShown) {
+          const cards = list
+            .filter((m) => m.object && !m.uncertain)
+            .map(memoryCardHtml)
+            .join("");
+          appendAi(`<div class="bubble">好的，我记住了。</div>${cards}`);
+        }
+        render();
+      } finally {
+        submitting = false;
       }
-      if (!diffShown) {
-        const cards = list
-          .filter((m) => m.object && !m.uncertain)
-          .map(memoryCardHtml)
-          .join("");
-        appendAi(`<div class="bubble">好的，我记住了。</div>${cards}`);
-      }
-      render();
     });
 
     document.getElementById("exampleChips")?.addEventListener("click", (e) => {
@@ -1250,6 +1396,7 @@
       if (!chip) return;
       const text = chip.getAttribute("data-text") || "";
       if (!text) return;
+      dismissVoiceDraft();
       input.value = text;
       form.requestSubmit();
     });
@@ -1259,6 +1406,27 @@
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     let recognition = null;
     let listening = false;
+
+    function startListening() {
+      if (!recognition) return;
+      try {
+        recognition.start();
+      } catch (err) {
+        errorEl.textContent = "无法开始录音：" + err.message;
+      }
+    }
+
+    function enterVoiceDraft(transcript) {
+      input.value = transcript;
+      setVoiceDraftActive(true);
+      errorEl.textContent = "";
+      input.focus();
+      try {
+        input.setSelectionRange(input.value.length, input.value.length);
+      } catch (_e) {
+        /* ignore */
+      }
+    }
 
     if (!SpeechRecognition) {
       micBtn.disabled = true;
@@ -1284,8 +1452,10 @@
           transcript += event.results[i][0].transcript;
           if (!event.results[i].isFinal) allFinal = false;
         }
-        input.value = transcript.trim();
-        if (allFinal && input.value) form.requestSubmit();
+        const text = transcript.trim();
+        input.value = text;
+        // 语音只写入 Composer Draft，不自动提交 / 不进入 Memory Understanding。
+        if (allFinal && text) enterVoiceDraft(text);
       };
 
       recognition.onerror = (event) => {
@@ -1310,13 +1480,39 @@
           recognition.stop();
           return;
         }
-        try {
-          recognition.start();
-        } catch (err) {
-          errorEl.textContent = "无法开始录音：" + err.message;
+        startListening();
+      });
+
+      voiceRetryBtn?.addEventListener("click", () => {
+        // 重新录音：不产生 Memory，清空草稿后再次识别。
+        input.value = "";
+        dismissVoiceDraft();
+        errorEl.textContent = "";
+        if (listening && recognition) {
+          try {
+            recognition.stop();
+          } catch (_e) {
+            /* ignore */
+          }
         }
+        setTimeout(() => startListening(), 120);
+      });
+
+      voiceConfirmBtn?.addEventListener("click", () => {
+        // 确认发送：以输入框当前（可编辑）文本作为最终输入。
+        const text = input.value.trim();
+        if (!text) {
+          errorEl.textContent = "请先确认或编辑识别结果。";
+          return;
+        }
+        form.requestSubmit();
       });
     }
+
+    // 用户手动编辑后仍可用原「发送」；开始打字时保留草稿条直到发送/重录。
+    input.addEventListener("input", () => {
+      if (voiceDraftActive && !input.value.trim()) dismissVoiceDraft();
+    });
   </script>
 </body>
 </html>
