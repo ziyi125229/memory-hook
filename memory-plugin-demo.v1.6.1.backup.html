@@ -3,310 +3,335 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Memory Hook</title>
+  <title>记忆外挂</title>
   <style>
     :root {
-      --bg: #f7f6f3;
-      --bg-2: #efeee9;
-      --panel: #ffffff;
-      --line: rgba(30, 30, 28, 0.08);
-      --text: #1c1c1a;
-      --muted: #8a8780;
-      --accent: #2f2e2b;
-      --accent-soft: #f0efeb;
-      --user: #eceae4;
-      --ai: #ffffff;
-      --ok: #2f6b4f;
-      --warn: #9a5b1a;
-      --shadow: 0 8px 28px rgba(28, 28, 26, 0.06);
+      --bg: #f4efe8;
+      --bg-2: #ebe4d8;
+      --panel: rgba(255, 252, 248, 0.86);
+      --line: rgba(90, 70, 50, 0.1);
+      --text: #2c261f;
+      --muted: #8a7d6e;
+      --accent: #6b5a46;
+      --accent-soft: #efe6d8;
+      --warn: #b45309;
+      --shadow: 0 10px 30px rgba(80, 60, 40, 0.08);
     }
+
     * { box-sizing: border-box; }
+
     body {
       margin: 0;
       min-height: 100vh;
-      font-family: "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
-      background: linear-gradient(180deg, var(--bg), var(--bg-2));
+      font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", serif;
+      background:
+        radial-gradient(900px 480px at 12% -8%, #fffaf3, transparent 60%),
+        radial-gradient(700px 420px at 100% 8%, #e7ddd0, transparent 55%),
+        linear-gradient(180deg, var(--bg), var(--bg-2));
       color: var(--text);
     }
-    .page {
-      max-width: 760px;
+
+    .wrap {
+      max-width: 680px;
       margin: 0 auto;
-      padding: 40px 20px 120px;
+      padding: 56px 20px 96px;
     }
-    .header {
-      text-align: center;
-      margin-bottom: 28px;
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 32px;
+      font-weight: 560;
+      letter-spacing: 0.12em;
     }
-    .header h1 {
-      margin: 0 0 8px;
-      font-size: 28px;
-      font-weight: 620;
-      letter-spacing: 0.02em;
-    }
-    .header .claim {
-      margin: 0;
-      color: var(--muted);
-      font-size: 14px;
-    }
-    .header .slogan {
-      margin: 6px 0 0;
-      font-size: 15px;
-      color: var(--text);
-    }
-    .stage {
-      background: rgba(255,255,255,0.55);
-      border: 1px solid var(--line);
-      border-radius: 24px;
-      box-shadow: var(--shadow);
-      padding: 20px 18px 12px;
-      min-height: 360px;
-      display: flex;
-      flex-direction: column;
-    }
-    .thread {
-      flex: 1;
-      overflow-y: auto;
-      max-height: 52vh;
-      padding: 4px 4px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-    .empty-hint {
-      margin: auto;
-      text-align: center;
+
+    .sub {
+      margin: 0 0 32px;
       color: var(--muted);
       font-size: 14px;
       line-height: 1.7;
-      padding: 40px 12px;
     }
-    .msg {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      max-width: 92%;
-      animation: fadeUp 0.28s ease;
-    }
-    .msg.user { align-self: flex-end; align-items: flex-end; }
-    .msg.ai { align-self: flex-start; align-items: flex-start; }
-    .bubble {
-      padding: 12px 16px;
-      border-radius: 18px;
-      font-size: 15px;
-      line-height: 1.55;
-      border: 1px solid var(--line);
-    }
-    .msg.user .bubble {
-      background: var(--user);
-      border-radius: 18px 18px 6px 18px;
-    }
-    .msg.ai .bubble {
-      background: var(--ai);
-      border-radius: 18px 18px 18px 6px;
-    }
-    .memory-card, .state-diff, .clarify-card, .answer-card {
+
+    .card {
       background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 14px 16px;
+      border-radius: 20px;
+      padding: 22px;
       box-shadow: var(--shadow);
-      min-width: 220px;
+      backdrop-filter: blur(10px);
     }
-    .memory-card .title, .state-diff .title, .clarify-card .title, .answer-card .title {
-      font-size: 12px;
-      color: var(--muted);
-      letter-spacing: 0.06em;
-      margin-bottom: 8px;
-    }
-    .memory-card .row, .state-diff .row {
-      font-size: 14px;
-      line-height: 1.7;
-    }
-    .state-diff .arrow {
-      margin: 8px 0;
-      font-size: 14px;
-      color: var(--text);
-    }
-    .state-diff .muted { color: var(--muted); font-size: 13px; }
-    .clarify-card {
-      border-color: rgba(154, 91, 26, 0.25);
-      background: #fffaf4;
-    }
-    .answer-card strong {
+
+    label {
       display: block;
-      font-size: 16px;
-      margin-bottom: 8px;
-    }
-    .evidence {
-      margin-top: 8px;
-      padding-top: 8px;
-      border-top: 1px solid var(--line);
+      font-size: 12px;
+      letter-spacing: 0.08em;
       color: var(--muted);
-      font-size: 13px;
-      line-height: 1.5;
+      margin-bottom: 10px;
     }
-    .composer {
-      margin-top: 8px;
-      padding-top: 12px;
-      border-top: 1px solid var(--line);
-    }
-    .composer-row {
+
+    .row {
       display: flex;
-      gap: 8px;
-      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
     }
-    .composer input[type="text"] {
+
+    input[type="text"] {
       flex: 1;
-      height: 48px;
-      border-radius: 14px;
+      min-width: 180px;
+      height: 46px;
+      padding: 0 16px;
+      border-radius: 12px;
       border: 1px solid var(--line);
       background: #fff;
-      padding: 0 16px;
+      color: var(--text);
       font-size: 15px;
       outline: none;
-      color: var(--text);
     }
-    .composer input[type="text"]:focus {
-      border-color: #c9c5bc;
-      box-shadow: 0 0 0 4px rgba(47,46,43,0.06);
+
+    input[type="text"]:focus {
+      border-color: #c4b29a;
+      box-shadow: 0 0 0 4px rgba(196, 178, 154, 0.28);
     }
-    .composer button {
-      height: 48px;
+
+    button {
+      height: 46px;
+      padding: 0 18px;
       border: 0;
-      border-radius: 14px;
-      padding: 0 16px;
+      border-radius: 12px;
+      background: var(--accent);
+      color: #faf6f0;
       font-weight: 600;
       cursor: pointer;
       white-space: nowrap;
     }
-    .btn-send {
-      background: var(--accent);
-      color: #faf9f6;
-    }
-    .btn-mic {
+
+    button:hover { filter: brightness(1.06); }
+
+    button.secondary {
       background: #fff;
       color: var(--text);
-      border: 1px solid var(--line) !important;
-      min-width: 48px;
+      border: 1px solid var(--line);
     }
-    .btn-mic.listening {
+
+    button.listening {
       background: #7f1d1d;
       color: #fecaca;
-      border-color: #991b1b !important;
+      border-color: #991b1b;
       animation: pulse 1.2s ease-in-out infinite;
     }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    @keyframes pulse {
+      50% { filter: brightness(1.2); }
+    }
+
+    .hint {
+      margin: 12px 0 0;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
     .error {
-      min-height: 1.2em;
-      margin: 8px 2px 0;
+      margin-top: 10px;
       color: var(--warn);
       font-size: 13px;
+      min-height: 1.2em;
     }
-    .shelf {
-      margin-top: 22px;
-      background: rgba(255,255,255,0.7);
-      border: 1px solid var(--line);
-      border-radius: 20px;
-      padding: 16px 18px;
-    }
-    .shelf h2 {
-      margin: 0 0 12px;
-      font-size: 12px;
-      letter-spacing: 0.14em;
-      color: var(--muted);
+
+    h2 {
+      margin: 40px 0 16px;
+      font-size: 13px;
       font-weight: 600;
+      letter-spacing: 0.16em;
+      color: var(--muted);
     }
-    .shelf-list {
+
+    .timeline {
       list-style: none;
       margin: 0;
       padding: 0;
       display: grid;
-      gap: 10px;
+      gap: 12px;
     }
-    .shelf-item {
-      background: #fff;
+
+    .record-card {
+      position: relative;
+      background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 12px 14px;
+      border-radius: 18px;
+      padding: 18px 18px 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .record-card .meta {
+      position: absolute;
+      top: 16px;
+      right: 18px;
+      margin: 0;
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0.02em;
+    }
+
+    .item-line {
+      padding-right: 150px;
+      font-size: 15px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      align-items: center;
+    }
+
+    .field {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 13px;
+    }
+
+    .empty {
+      color: var(--muted);
       font-size: 14px;
     }
-    .shelf-item .top {
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      align-items: baseline;
+
+    .search-block {
+      margin-top: 44px;
     }
-    .shelf-item .meta { color: var(--muted); font-size: 12px; }
-    .shelf-item .loc { color: var(--muted); margin-top: 4px; font-size: 13px; }
-    .shelf-empty { color: var(--muted); font-size: 14px; }
-    .shelf details {
-      margin-top: 12px;
+
+    .ok {
+      margin-top: 10px;
+      color: #3f6b4b;
+      font-size: 13px;
+      line-height: 1.6;
+      min-height: 1.2em;
+    }
+
+    .answer-box {
+      margin: 16px 0 8px;
+      padding: 16px 18px;
+      border-radius: 16px;
+      background: #fff;
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+
+    .answer-box strong {
+      font-size: 16px;
+      font-weight: 650;
+    }
+
+    .evidence-label {
+      margin: 12px 0 8px;
+      font-size: 12px;
       color: var(--muted);
-      font-size: 13px;
+      letter-spacing: 0.08em;
     }
-    .shelf summary { cursor: pointer; }
-    .hist-list {
-      list-style: none;
-      margin: 10px 0 0;
+
+    .record-card.history {
+      opacity: 0.62;
+    }
+
+    .original {
+      margin-top: 8px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .history-toggle {
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .history-toggle summary {
+      cursor: pointer;
+    }
+
+    .del {
+      margin-top: 10px;
+      background: none;
+      border: 0;
       padding: 0;
-      display: grid;
-      gap: 8px;
+      height: auto;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 400;
+      cursor: pointer;
     }
-    .hist-item {
-      opacity: 0.72;
-      background: #faf9f6;
-      border: 1px dashed var(--line);
-      border-radius: 12px;
-      padding: 10px 12px;
-      font-size: 13px;
+
+    .ai-remember {
+      margin-top: 14px;
+      padding: 14px 16px;
+      border-radius: 14px;
+      background: #fff;
+      border: 1px solid var(--line);
+      line-height: 1.7;
     }
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: none; }
+
+    .ai-remember strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 16px;
     }
-    @keyframes pulse {
-      50% { filter: brightness(1.15); }
+
+    .ai-row {
+      color: var(--text);
+      font-size: 14px;
     }
-    @media (max-width: 560px) {
-      .page { padding: 28px 14px 100px; }
-      .msg { max-width: 100%; }
+
+    @media (max-width: 520px) {
+      .item-line { padding-right: 0; padding-top: 22px; }
     }
   </style>
 </head>
 <body>
-  <div class="page">
-    <header class="header">
-      <h1>Memory Hook</h1>
-      <p class="claim">你的 AI 个人记忆助手</p>
-      <p class="slogan">你只管说，我帮你记。</p>
-    </header>
+  <div class="wrap">
+    <h1>记忆外挂</h1>
+    <p class="sub">你只管说，我帮你记。</p>
 
-    <section class="stage">
-      <div class="thread" id="thread">
-        <div class="empty-hint" id="emptyHint">
-          说一句要记住的事，或直接问我。<br />
-          例如：我把红色钥匙放到客厅茶几下面抽屉里了。
-        </div>
-      </div>
-
-      <form class="composer" id="form">
-        <div class="composer-row">
-          <input id="memory" type="text" placeholder="说点什么，或问我：我的钥匙在哪？" autocomplete="off" />
-          <button type="button" class="btn-mic" id="mic" title="语音输入">🎙</button>
-          <button type="submit" class="btn-send">发送</button>
-        </div>
-        <p class="error" id="error"></p>
+    <div class="card">
+      <label for="memory">说点什么，我帮你记住</label>
+      <form id="form" class="row">
+        <input id="memory" type="text" placeholder="例如：我把红色钥匙扔到客厅茶几下面的抽屉里了" autocomplete="off" />
+        <button type="submit">记住</button>
+        <button type="button" class="secondary" id="mic">开始录音</button>
       </form>
-    </section>
+      <p class="hint">直接说话或打字就行，不用填表格。听不清的，我会先问你。</p>
+      <div class="ok" id="ok"></div>
+      <p class="error" id="error"></p>
+    </div>
 
-    <section class="shelf">
-      <h2>MEMORY SHELF · CURRENT</h2>
-      <ul class="shelf-list" id="shelfCurrent"></ul>
-      <p class="shelf-empty" id="shelfEmpty">还没有当前记忆。</p>
-      <details id="shelfHistoryWrap">
-        <summary id="shelfHistorySummary">查看历史</summary>
-        <ul class="hist-list" id="shelfHistory"></ul>
-      </details>
-    </section>
+    <div class="search-block" style="margin-top: 20px;">
+      <h2>问一句</h2>
+      <div class="card">
+        <label for="search">自然语言检索</label>
+        <form id="searchForm" class="row">
+          <input id="search" type="text" placeholder="例如：我的红色钥匙在哪？" autocomplete="off" />
+          <button type="submit">搜索</button>
+        </form>
+        <p class="hint">问「在哪」「借给谁了」「借给别人什么了」。点搜索或回车即可。</p>
+      </div>
+      <div id="answer"></div>
+      <p class="evidence-label" id="evidenceLabel"></p>
+      <ul class="timeline" id="searchResults"></ul>
+      <p class="empty" id="searchEmpty"></p>
+    </div>
+
+    <h2>时间轴</h2>
+    <ul class="timeline" id="timeline"></ul>
+    <p class="empty" id="empty">还没有记录。</p>
   </div>
 
   <script>
@@ -319,6 +344,20 @@
       ["充电宝", "移动电源"],
       ["钥匙", "钥匙串"],
     ];
+
+    const form = document.getElementById("form");
+    const input = document.getElementById("memory");
+    const errorEl = document.getElementById("error");
+    const okEl = document.getElementById("ok");
+    const timeline = document.getElementById("timeline");
+    const empty = document.getElementById("empty");
+    const micBtn = document.getElementById("mic");
+    const searchInput = document.getElementById("search");
+    const searchForm = document.getElementById("searchForm");
+    const searchResults = document.getElementById("searchResults");
+    const searchEmpty = document.getElementById("searchEmpty");
+    const answerEl = document.getElementById("answer");
+    const evidenceLabel = document.getElementById("evidenceLabel");
 
     let memories = loadMemories();
 
@@ -988,222 +1027,127 @@
       return "🔑";
     }
 
-
-    const form = document.getElementById("form");
-    const input = document.getElementById("memory");
-    const errorEl = document.getElementById("error");
-    const micBtn = document.getElementById("mic");
-    const thread = document.getElementById("thread");
-    const emptyHint = document.getElementById("emptyHint");
-    const shelfCurrent = document.getElementById("shelfCurrent");
-    const shelfEmpty = document.getElementById("shelfEmpty");
-    const shelfHistory = document.getElementById("shelfHistory");
-    const shelfHistorySummary = document.getElementById("shelfHistorySummary");
-
-    function escapeHtml(s) {
-      return String(s || "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
-    }
-
-    function clearEmptyHint() {
-      if (emptyHint && emptyHint.parentNode) emptyHint.remove();
-    }
-
-    function appendUser(text) {
-      clearEmptyHint();
-      const el = document.createElement("div");
-      el.className = "msg user";
-      el.innerHTML = `<div class="bubble">${escapeHtml(text)}</div>`;
-      thread.appendChild(el);
-      thread.scrollTop = thread.scrollHeight;
-    }
-
-    function appendAi(htmlInner) {
-      clearEmptyHint();
-      const el = document.createElement("div");
-      el.className = "msg ai";
-      el.innerHTML = htmlInner;
-      thread.appendChild(el);
-      thread.scrollTop = thread.scrollHeight;
-    }
-
-    function memoryCardHtml(m) {
-      const rows = [];
-      rows.push(`<div class="row">${objectEmoji(m.object)} ${escapeHtml(m.object)}</div>`);
-      if (m.location) rows.push(`<div class="row">📍 ${escapeHtml(locationPath(m.location))}</div>`);
-      if (m.person) rows.push(`<div class="row">👤 借给：${escapeHtml(m.person)}</div>`);
-      rows.push(`<div class="row">🕐 ${escapeHtml(relativeTime(m.timestamp) || "刚刚")}</div>`);
-      return `<div class="memory-card"><div class="title">MEMORY</div>${rows.join("")}</div>`;
-    }
-
-    function clarifyCardHtml(text) {
-      return `<div class="bubble">${escapeHtml(text)}</div>
-        <div class="clarify-card">
-          <div class="title">CLARIFY</div>
-          <div class="row">这条会先保存原文，但不会当作确定的当前位置。</div>
-        </div>`;
-    }
-
-    function stateDiffHtml(prev, next) {
-      const oldLoc = prev && prev.location ? locationAnswer(prev.location) : (prev && prev.person ? `借给${prev.person}` : "未知");
-      const newLoc = next.location ? locationAnswer(next.location) : (next.person ? `借给${next.person}` : "未知");
-      const hist = historyForObject(next.object, next.id)
-        .slice(0, 3)
-        .map((h) => {
-          const loc = h.location ? locationAnswer(h.location) : (h.person ? `借给${h.person}` : "");
-          return `<div class="muted">· ${escapeHtml(h.object)} → ${escapeHtml(loc)}</div>`;
-        })
-        .join("");
-      return `<div class="bubble">好的，我更新了${escapeHtml(next.object)}的位置。</div>
-        <div class="state-diff">
-          <div class="title">STATE UPDATE</div>
-          <div class="row">${escapeHtml(next.object)}</div>
-          <div class="arrow">${escapeHtml(oldLoc)} → ${escapeHtml(newLoc)}</div>
-          <div class="row"><strong>Current</strong> ${escapeHtml(next.object)} → ${escapeHtml(newLoc)}</div>
-          <div class="muted" style="margin-top:8px">History</div>
-          ${hist || `<div class="muted">· ${escapeHtml(next.object)} → ${escapeHtml(oldLoc)}</div>`}
-        </div>`;
-    }
-
-    function answerBlockHtml(answer, evidenceMem) {
-      let evidence = "";
-      if (evidenceMem) {
-        evidence = `<div class="evidence">最近记录 · ${escapeHtml(relativeTime(evidenceMem.timestamp))}<br/>“${escapeHtml(evidenceMem.originalText)}”</div>`;
+    function rememberedHtml(list) {
+      const first = list[0];
+      if (!first || first.uncertain || list.every((m) => m.uncertain || !m.object)) {
+        return `<div class="ai-remember"><strong>${captureAsk(first && first.originalText)}</strong></div>`;
       }
-      return `<div class="bubble">${escapeHtml(answer)}</div>
-        <div class="answer-card">
-          <div class="title">ANSWER</div>
-          <strong>${escapeHtml(answer)}</strong>
-          ${evidence}
-        </div>`;
-    }
-
-    function findPrevStateSnapshot(object, snapshot) {
-      if (!object || !snapshot) return null;
-      const hit = Object.keys(snapshot).find((k) => {
-        const st = snapshot[k];
-        return objectsMatch(k, object) || objectsMatch(st.object, object);
-      });
-      return hit ? snapshot[hit] : null;
-    }
-
-    function renderShelf() {
-      const currents = Object.values(currentState || {});
-      const currentIds = new Set(currents.map((s) => s.memoryId));
-      const currentMems = currents
-        .map((s) => memories.find((m) => m.id === s.memoryId))
-        .filter(Boolean)
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-      const historyMems = memories
-        .filter((m) => m.object && !m.uncertain && !currentIds.has(m.id))
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-      shelfEmpty.style.display = currentMems.length ? "none" : "block";
-      shelfCurrent.innerHTML = currentMems
+      const rows = list
+        .filter((m) => m.object)
         .map((m) => {
-          const loc = m.location
-            ? locationPath(m.location)
-            : m.person
-            ? `借给 ${m.person}`
-            : "—";
-          return `<li class="shelf-item">
-            <div class="top"><span>${objectEmoji(m.object)} ${escapeHtml(m.object)}</span><span class="meta">${escapeHtml(relativeTime(m.timestamp))}</span></div>
-            <div class="loc">${escapeHtml(loc)}</div>
-          </li>`;
+          const bits = [`<div class="ai-row">${objectEmoji(m.object)} ${m.object}</div>`];
+          if (m.location) bits.push(`<div class="ai-row">📍 ${locationPath(m.location)}</div>`);
+          if (m.person) bits.push(`<div class="ai-row">👤 借给：${m.person}</div>`);
+          bits.push(`<div class="ai-row">🕐 刚刚</div>`);
+          return bits.join("");
         })
         .join("");
-      shelfHistorySummary.textContent = `查看历史（${historyMems.length}）`;
-      shelfHistory.innerHTML = historyMems.length
-        ? historyMems
-            .map((m) => {
-              const loc = m.location
-                ? locationAnswer(m.location)
-                : m.person
-                ? `借给${m.person}`
-                : "";
-              return `<li class="hist-item">${escapeHtml(m.object)} → ${escapeHtml(loc)} · ${escapeHtml(relativeTime(m.timestamp))}</li>`;
-            })
-            .join("")
-        : `<li class="hist-item">暂无历史记录</li>`;
+      return `<div class="ai-remember"><strong>好的，我记住了。</strong>${rows}</div>`;
+    }
+
+    function recordHtml(m, withDelete) {
+      const tags = [];
+      if (m.object) tags.push(`<span class="field">物品</span> <span class="tag">${m.object}</span>`);
+      if (m.location) tags.push(`<span class="field">位置</span> <span class="tag">${locationPath(m.location)}</span>`);
+      if (m.person) tags.push(`<span class="field">人物</span> <span class="tag">${m.person}</span>`);
+      if (m.event) tags.push(`<span class="field">事件</span> <span class="tag">${m.event}</span>`);
+      if (m.status) tags.push(`<span class="field">状态</span> <span class="tag">${m.status}</span>`);
+      if (!m.object && !m.location) tags.push(`<span class="tag">原文已保存</span>`);
+      const hist = m.isCurrent ? "" : " history";
+      const del = withDelete
+        ? `<button class="del" type="button" data-del="${m.id}">删除</button>`
+        : "";
+      return `
+        <li class="record-card${hist}">
+          <div class="meta">${formatClock(m.timestamp)}</div>
+          <div class="item-line">${tags.join("")}</div>
+          <div class="original">${m.originalText}${m.isCurrent ? "" : "（历史）"}</div>
+          ${del}
+        </li>`;
     }
 
     function render() {
-      renderShelf();
+      empty.style.display = memories.length ? "none" : "block";
+      const sorted = [...memories].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      timeline.innerHTML = sorted.map((m) => recordHtml(m, true)).join("");
+      renderSearch();
     }
 
-    function runQuery(q) {
-      appendUser(q);
-      const { intent, results, current, history, unsure } = retrieve(q);
-      const answer = makeAnswer(intent, results, current) || UNSURE;
-      const evidence = results && results[0] ? results[0] : null;
-      const isClarify =
-        unsure ||
-        intent.vague ||
-        /哪一件|不确定|指的是/.test(answer);
-      if (isClarify && (!evidence || evidence.uncertain || intent.vague)) {
-        appendAi(clarifyCardHtml(answer));
-      } else {
-        appendAi(answerBlockHtml(answer, evidence && !evidence.uncertain ? evidence : null));
+    function renderSearch() {
+      const q = searchInput.value.trim();
+      if (!q) {
+        answerEl.innerHTML = "";
+        evidenceLabel.textContent = "";
+        searchResults.innerHTML = "";
+        searchEmpty.textContent = memories.length ? "用自然语言问一句即可。" : "";
+        return;
       }
-      render();
+      const { intent, results, current, history, unsure } = retrieve(q);
+      if (unsure || (!results.length && !(current && makeAnswer(intent, results, current)))) {
+        const answer = makeAnswer(intent, results, current) || UNSURE;
+        answerEl.innerHTML = `<div class="answer-box"><strong>${answer}</strong></div>`;
+        evidenceLabel.textContent = "";
+        searchResults.innerHTML = "";
+        searchEmpty.textContent = "";
+        return;
+      }
+      const answer = makeAnswer(intent, results, current);
+      const latest = results[0];
+      answerEl.innerHTML = `<div class="answer-box"><strong>${answer}</strong></div>`;
+      evidenceLabel.textContent = `最近记录：${relativeTime(latest.timestamp)}`;
+      let html = results.map((m) => recordHtml(m, false)).join("");
+      if (history && history.length) {
+        html += `<li class="history-toggle"><details><summary>查看历史位置（${history.length}）</summary><ul class="timeline">${history.map((m) => recordHtml(m, false)).join("")}</ul></details></li>`;
+      }
+      searchResults.innerHTML = html;
+      searchEmpty.textContent = "";
+    }
+
+    function runSearch(q) {
+      searchInput.value = q;
+      renderSearch();
+      searchInput.scrollIntoView({ behavior: "smooth", block: "center" });
     }
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       errorEl.textContent = "";
+      okEl.innerHTML = "";
       const text = input.value.trim();
       if (!text) {
-        errorEl.textContent = "先说一句要记住的话，或问我一个问题。";
+        errorEl.textContent = "先说一句要记住的话。";
         return;
       }
       if (looksLikeQuery(text)) {
         input.value = "";
-        runQuery(text);
+        okEl.innerHTML = "";
+        runSearch(text);
         return;
       }
-
-      appendUser(text);
-      const beforeState = JSON.parse(JSON.stringify(currentState || {}));
       const list = await understandMemories(text);
       list.forEach((memory) => memories.unshift(memory));
       resolveStates();
       persist();
       input.value = "";
-
-      const first = list[0];
-      if (!first || first.uncertain || list.every((m) => m.uncertain || !m.object)) {
-        appendAi(clarifyCardHtml(captureAsk(first && first.originalText)));
-        render();
-        return;
-      }
-
-      // State Diff: same object had a previous current location/person
-      let diffShown = false;
-      for (const m of list.filter((x) => x.object && !x.uncertain)) {
-        const prev = findPrevStateSnapshot(m.object, beforeState);
-        if (!prev) continue;
-        const prevLoc = prev.location ? locationAnswer(prev.location) : "";
-        const nextLoc = m.location ? locationAnswer(m.location) : "";
-        const locChanged = prevLoc && nextLoc && prevLoc !== nextLoc;
-        const lendChanged = prev.status !== m.status || prev.person !== m.person;
-        if (locChanged || lendChanged) {
-          appendAi(stateDiffHtml(prev, m));
-          diffShown = true;
-          break;
-        }
-      }
-      if (!diffShown) {
-        const cards = list
-          .filter((m) => m.object && !m.uncertain)
-          .map(memoryCardHtml)
-          .join("");
-        appendAi(`<div class="bubble">好的，我记住了。</div>${cards}`);
-      }
+      okEl.innerHTML = rememberedHtml(list);
       render();
     });
+
+    timeline.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-del]");
+      if (!btn) return;
+      const id = btn.getAttribute("data-del");
+      memories = memories.filter((m) => m.id !== id);
+      resolveStates();
+      persist();
+      render();
+    });
+
+    searchForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      renderSearch();
+    });
+    searchInput.addEventListener("input", renderSearch);
 
     render();
 
@@ -1224,7 +1168,7 @@
       recognition.onstart = () => {
         listening = true;
         micBtn.classList.add("listening");
-        micBtn.textContent = "…";
+        micBtn.textContent = "正在听…";
         errorEl.textContent = "";
       };
 
@@ -1252,7 +1196,7 @@
       recognition.onend = () => {
         listening = false;
         micBtn.classList.remove("listening");
-        micBtn.textContent = "🎙";
+        micBtn.textContent = "开始录音";
       };
 
       micBtn.addEventListener("click", () => {
