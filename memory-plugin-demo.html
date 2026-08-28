@@ -2,476 +2,1268 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Memory Hook</title>
   <style>
     :root {
-      --bg: #f7f6f3;
-      --bg-2: #efeee9;
-      --panel: #ffffff;
-      --line: rgba(30, 30, 28, 0.08);
-      --text: #1c1c1a;
-      --muted: #8a8780;
-      --accent: #2f2e2b;
-      --accent-soft: #f0efeb;
-      --user: #eceae4;
-      --ai: #ffffff;
-      --ok: #2f6b4f;
+      --ink: #2b2620;
+      --ink-soft: #5c554c;
+      --muted: #9a9288;
+      --muted-2: #b7aea3;
+      --line: rgba(60, 48, 32, 0.08);
+      --cream: #f7f2ea;
       --warn: #9a5b1a;
-      --shadow: 0 8px 28px rgba(28, 28, 26, 0.06);
+      --sidebar: rgba(255, 252, 248, 0.55);
+      --card-shadow: 0 28px 60px rgba(90, 70, 45, 0.09), 0 8px 18px rgba(90, 70, 45, 0.04);
+      --dock-shadow: 0 18px 40px rgba(80, 60, 40, 0.10), inset 0 1px 0 rgba(255,255,255,0.85);
     }
     * { box-sizing: border-box; }
-    body {
+    html, body {
       margin: 0;
+      min-height: 100%;
+      color: var(--ink);
+      font-family: "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Helvetica Neue", Arial, sans-serif;
+      background: #efe8dc;
+      overscroll-behavior: none;
+      -webkit-text-size-adjust: 100%;
+    }
+    body {
       min-height: 100vh;
-      font-family: "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
-      background: linear-gradient(180deg, var(--bg), var(--bg-2));
-      color: var(--text);
+      min-height: 100dvh;
+      overflow-x: hidden;
+      position: relative;
+      -webkit-tap-highlight-color: transparent;
     }
-    .page {
-      max-width: 760px;
+
+    /* Multi-layer atmospheric background — not a single linear-gradient */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(980px 640px at 52% 28%, rgba(255, 248, 235, 0.95), transparent 62%),
+        radial-gradient(720px 520px at 18% 72%, rgba(232, 214, 196, 0.55), transparent 58%),
+        radial-gradient(640px 480px at 88% 18%, rgba(214, 226, 236, 0.42), transparent 55%),
+        radial-gradient(560px 420px at 78% 78%, rgba(236, 220, 232, 0.28), transparent 60%),
+        radial-gradient(1200px 800px at 50% 110%, rgba(210, 198, 178, 0.35), transparent 55%),
+        #efe8dc;
+    }
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(ellipse 80% 60% at 50% 40%, transparent 40%, rgba(180, 165, 145, 0.18) 100%);
+      mix-blend-mode: multiply;
+      opacity: 0.55;
+    }
+    .glow-a, .glow-b, .glow-c {
+      position: fixed;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 0;
+      filter: blur(60px);
+    }
+    .glow-a {
+      width: 420px; height: 420px;
+      left: 42%; top: 8%;
+      background: rgba(255, 236, 200, 0.55);
+    }
+    .glow-b {
+      width: 360px; height: 360px;
+      left: 8%; bottom: 12%;
+      background: rgba(220, 200, 180, 0.35);
+    }
+    .glow-c {
+      width: 300px; height: 300px;
+      right: 6%; top: 22%;
+      background: rgba(200, 218, 232, 0.28);
+    }
+
+    .shell {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      min-height: 100vh;
+      max-width: 1440px;
       margin: 0 auto;
-      padding: 40px 20px 120px;
+      padding: 18px 18px 18px 14px;
+      gap: 8px;
     }
-    .header {
+
+    /* —— Sidebar (reference left rail) —— */
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      padding: 22px 16px 18px;
+      border-radius: 28px;
+      background: rgba(255, 252, 248, 0.42);
+      box-shadow: none;
+      border: 1px solid rgba(255,255,255,0.35);
+      min-height: calc(100vh - 36px);
+      opacity: 0.92;
+    }
+    .side-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 4px 8px 22px;
+    }
+    .side-brand .spark {
+      width: 28px;
+      height: 28px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(145deg, #ffd9a8, #f0b57a);
+      color: #fff;
+      font-size: 14px;
+      box-shadow: 0 6px 14px rgba(196, 130, 70, 0.28);
+    }
+    .side-brand .name {
+      font-size: 15px;
+      font-weight: 650;
+      letter-spacing: 0.01em;
+      color: var(--ink);
+    }
+    .side-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+    }
+    .side-nav a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 12px;
+      border-radius: 14px;
+      color: var(--ink-soft);
+      text-decoration: none;
+      font-size: 13.5px;
+      transition: background 0.15s ease;
+    }
+    .side-nav a.active {
+      background: rgba(255, 236, 200, 0.45);
+      color: var(--ink);
+      font-weight: 600;
+      box-shadow: 0 0 18px rgba(240, 190, 120, 0.18);
+    }
+    .side-nav .ico { width: 18px; text-align: center; opacity: 0.75; font-size: 14px; }
+    .side-foot {
+      margin-top: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding-top: 16px;
+    }
+    .side-stat {
+      background: rgba(255,255,255,0.55);
+      border-radius: 16px;
+      padding: 12px 14px;
+      border: 1px solid rgba(255,255,255,0.65);
+    }
+    .side-stat .n {
+      font-size: 18px;
+      font-weight: 650;
+      color: var(--ink);
+    }
+    .side-stat .s {
+      margin-top: 2px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .side-stat .sparkline {
+      margin-top: 8px;
+      height: 22px;
+      border-radius: 8px;
+      background:
+        linear-gradient(180deg, transparent 40%, rgba(196,130,70,0.08)),
+        repeating-linear-gradient(90deg, transparent, transparent 10px, rgba(196,130,70,0.15) 10px, rgba(196,130,70,0.15) 11px);
+      opacity: 0.7;
+    }
+    .side-user {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 4px 6px;
+    }
+    .side-user .av {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: linear-gradient(145deg, #f0d2b0, #d8b892);
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 650;
+    }
+    .side-user .who { font-size: 13px; font-weight: 600; }
+    .side-user .role { font-size: 11px; color: var(--muted); }
+
+    /* —— Main stage —— */
+    .main {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      padding: 10px 18px 8px 10px;
+    }
+    .main-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 6px 8px 0;
+    }
+    .greet h1 {
+      margin: 0;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--ink);
+    }
+    .greet p {
+      margin: 6px 0 0;
+      font-size: 13.5px;
+      color: var(--muted);
+      font-weight: 400;
+    }
+    .top-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.62);
+      border: 1px solid rgba(255,255,255,0.7);
+      font-size: 12px;
+      color: var(--ink-soft);
+      box-shadow: 0 6px 16px rgba(90,70,45,0.05);
+    }
+    .status-pill i {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #5ea67a;
+      box-shadow: 0 0 8px rgba(94,166,122,0.55);
+      display: inline-block;
+    }
+    .bell {
+      width: 36px; height: 36px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.7);
+      background: rgba(255,255,255,0.55);
+      display: grid; place-items: center;
+      color: var(--ink-soft);
+      font-size: 14px;
+    }
+
+    /* Input dock — top of main, matching reference */
+    .composer-wrap {
+      margin: 16px auto 0;
+      width: min(680px, 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      z-index: 5;
+    }
+    .composer {
+      width: 100%;
+    }
+    .composer-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 58px;
+      padding: 7px 7px 7px 18px;
+      border-radius: 999px;
+      background: rgba(255, 252, 248, 0.88);
+      border: 1px solid rgba(255,255,255,0.9);
+      box-shadow: var(--dock-shadow);
+    }
+    .composer.expanded .composer-row {
+      box-shadow: 0 20px 44px rgba(80, 60, 40, 0.12), inset 0 1px 0 rgba(255,255,255,0.9);
+    }
+    .composer input[type="text"] {
+      flex: 1;
+      height: 42px;
+      border: 0;
+      background: transparent;
+      outline: none;
+      font-size: 15px;
+      color: var(--ink);
+      font-family: inherit;
+      min-width: 0;
+    }
+    .composer input[type="text"]::placeholder { color: #a89f93; }
+    .composer button {
+      border: 0;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .btn-mic {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: transparent;
+      color: var(--ink-soft);
+      font-size: 16px;
+    }
+    .btn-mic.listening {
+      background: #7f1d1d;
+      color: #fecaca;
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    .btn-send {
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      background: #1f1b17;
+      color: #f7f2ea;
+      font-size: 16px;
+      display: grid;
+      place-items: center;
+      box-shadow: 0 8px 18px rgba(20,16,12,0.22);
+    }
+    .composer-hint {
+      display: block;
+      margin: 8px 0 0;
+      font-size: 11.5px;
+      color: var(--muted);
       text-align: center;
-      margin-bottom: 28px;
+      line-height: 1.5;
+      opacity: 0.85;
     }
-    .header h1 {
-      margin: 0 0 8px;
-      font-size: 28px;
-      font-weight: 620;
+    .hook-status {
+      display: none;
+      margin: 8px 0 0;
+      text-align: center;
+      font-size: 12.5px;
+      color: var(--ink-soft);
       letter-spacing: 0.02em;
     }
-    .header .claim {
-      margin: 0;
-      color: var(--muted);
-      font-size: 14px;
+    .hook-status.show { display: block; animation: riseIn 0.25s ease; }
+    .composer.hooking .composer-row {
+      transform: scale(0.98);
+      transition: transform 0.2s ease;
     }
-    .header .slogan {
-      margin: 6px 0 0;
-      font-size: 15px;
-      color: var(--text);
+    .composer.hooking .btn-send {
+      animation: pulse 0.9s ease-in-out infinite;
     }
-    .stage {
-      background: rgba(255,255,255,0.55);
-      border: 1px solid var(--line);
-      border-radius: 24px;
-      box-shadow: var(--shadow);
-      padding: 20px 18px 12px;
-      min-height: 360px;
+    .hook-flyer {
+      position: fixed;
+      z-index: 60;
+      width: 180px;
+      padding: 14px 14px 12px;
+      border-radius: 22px;
+      background: #f5f1ea;
+      border: 1px solid rgba(255,255,255,0.8);
+      box-shadow: 0 24px 50px rgba(90,70,45,0.14);
+      pointer-events: none;
+      will-change: transform, opacity;
+    }
+    .hook-flyer .hf-icon { font-size: 28px; line-height: 1; }
+    .hook-flyer .hf-obj { font-size: 15px; font-weight: 650; margin-top: 6px; }
+    .hook-flyer .hf-loc { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .examples {
+      width: 100%;
       display: flex;
       flex-direction: column;
+      align-items: stretch;
+      gap: 6px;
     }
-    .thread {
-      flex: 1;
-      overflow-y: auto;
-      max-height: 52vh;
-      padding: 4px 4px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-    .empty-hint {
-      margin: auto;
-      text-align: center;
+    .examples-label {
+      font-size: 11px;
       color: var(--muted);
-      font-size: 14px;
-      line-height: 1.7;
-      padding: 40px 12px;
-    }
-    .empty-hint .try-label {
-      margin: 0 0 12px;
-      font-size: 13px;
-      color: var(--muted);
+      letter-spacing: 0.02em;
+      padding-left: 2px;
     }
     .chips {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
       justify-content: center;
-      margin-top: 4px;
     }
     .chip {
-      border: 1px solid var(--line);
-      background: #fff;
-      color: var(--text);
+      border: 0;
+      background: rgba(255,255,255,0.55);
+      color: var(--ink-soft);
       border-radius: 999px;
       padding: 8px 14px;
-      font-size: 13px;
+      font-size: 12.5px;
       cursor: pointer;
-      transition: background 0.15s ease, border-color 0.15s ease;
+      font-family: inherit;
+      box-shadow: 0 4px 12px rgba(90,70,45,0.05);
+      border: 1px solid rgba(255,255,255,0.65);
+      white-space: nowrap;
     }
-    .chip:hover {
-      background: var(--accent-soft);
-      border-color: #d5d1c8;
+    .chip:hover { background: rgba(255,255,255,0.8); color: var(--ink); }
+    .chip:active { background: rgba(255,255,255,0.88); color: var(--ink); }
+    .voice-draft {
+      display: none;
+      width: 100%;
+      margin-top: 4px;
+      padding: 12px 14px;
+      border-radius: 18px;
+      background: rgba(255,252,248,0.85);
+      border: 1px solid rgba(255,255,255,0.8);
     }
-    .answer-card .evidence {
-      margin-top: 0;
-      padding-top: 0;
-      border-top: 0;
-      color: var(--text);
-      font-size: 14px;
-      line-height: 1.55;
-    }
-    .answer-card .evidence .meta {
-      color: var(--muted);
+    .voice-draft.active { display: block; }
+    .voice-draft .hint { margin: 0 0 8px; font-size: 12px; color: var(--muted); }
+    .voice-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn-voice-retry, .btn-voice-cancel {
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid var(--line) !important;
+      border-radius: 999px !important;
+      height: 34px !important;
+      padding: 0 12px;
       font-size: 12px;
-      letter-spacing: 0.04em;
-      margin-bottom: 6px;
     }
-    .explain-trace {
-      margin-top: 8px;
-      min-width: 220px;
-      max-width: 100%;
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      box-shadow: var(--shadow);
-      padding: 0;
-      overflow: hidden;
-    }
-    .explain-trace > summary {
-      list-style: none;
-      cursor: pointer;
-      padding: 12px 16px;
-      font-size: 13px;
-      color: var(--muted);
-      user-select: none;
-    }
-    .explain-trace > summary::-webkit-details-marker { display: none; }
-    .explain-trace > summary::before {
-      content: "▸ ";
-      display: inline-block;
-      transition: transform 0.15s ease;
-    }
-    .explain-trace[open] > summary::before {
-      transform: rotate(90deg);
-    }
-    .explain-trace[open] > summary {
-      border-bottom: 1px solid var(--line);
-      color: var(--text);
-    }
-    .explain-body {
-      padding: 12px 16px 14px;
-      display: grid;
-      gap: 12px;
-    }
-    .explain-row .k,
-    .explain-block .k {
+    .btn-voice-confirm {
+      background: #1f1b17;
+      color: #f7f2ea;
+      border-radius: 999px !important;
+      height: 34px !important;
+      padding: 0 14px;
       font-size: 12px;
-      color: var(--muted);
-      margin-bottom: 4px;
     }
-    .explain-row .v,
-    .explain-block .v {
-      font-size: 14px;
-      line-height: 1.55;
-      color: var(--text);
+    .error {
+      min-height: 1em;
+      margin: 4px 0 0;
+      color: var(--warn);
+      font-size: 12px;
+      text-align: center;
     }
-    .explain-block .meta {
+    .shake-hint {
+      display: flex;
+      align-items: center;
+      gap: 6px;
       margin-top: 4px;
       font-size: 12px;
       color: var(--muted);
     }
-    .state-diff .explain-foot {
-      margin-top: 12px;
-      padding-top: 10px;
-      border-top: 1px solid var(--line);
-      font-size: 13px;
-      color: var(--muted);
-      line-height: 1.55;
+
+    /* Memory Space */
+    .memory-space {
+      position: relative;
+      flex: 1;
+      min-height: 520px;
+      margin-top: 4px;
     }
-    .clarify-choices {
+    .space-label {
+      position: absolute;
+      left: 50%;
+      top: 48%;
+      transform: translate(-50%, -50%);
+      font-size: 10px;
+      letter-spacing: 0.42em;
+      color: rgba(90, 80, 68, 0.28);
+      opacity: 0.32;
+      font-weight: 600;
+      pointer-events: none;
+      z-index: 1;
+      user-select: none;
+    }
+    .ghost-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+    .ghost {
+      position: absolute;
+      border-radius: 28px;
+      background: rgba(255,255,255,0.28);
+      filter: blur(18px);
+      opacity: 0.55;
+    }
+    .ghost.g1 { width: 180px; height: 120px; left: 8%; top: 18%; transform: rotate(-8deg); }
+    .ghost.g2 { width: 150px; height: 100px; right: 12%; top: 28%; transform: rotate(6deg); filter: blur(22px); }
+    .ghost.g3 { width: 200px; height: 110px; left: 40%; bottom: 18%; transform: rotate(-3deg); filter: blur(26px); opacity: 0.4; }
+
+    #shelfCurrent {
+      position: absolute;
+      /* Safe insets: avoid History (BL) + Shake bar + edge clip */
+      inset: 6px 3% 108px 2%;
+      z-index: 2;
+      overflow: visible;
+    }
+
+    /* Cards — soft translucent fragments */
+    .frag {
+      --tx: 0px;
+      --ty: 0px;
+      --rot: 0deg;
+      --px: 0px;
+      --py: 0px;
+      --ox: 0px;
+      --oy: -5px;
+      --or: 0.6deg;
+      --float-dur: 9s;
+      --float-delay: 0s;
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: var(--w, 210px);
+      transform:
+        translate3d(calc(var(--x) + var(--px) + var(--tx)), calc(var(--y) + var(--py) + var(--ty)), 0)
+        rotate(calc(var(--base-rot) + var(--rot)))
+        scale(var(--frag-scale, 1));
+      transform-origin: 50% 50%;
+      cursor: pointer;
+      user-select: none;
+      z-index: var(--z, 2);
+      will-change: transform;
+    }
+    .frag.size-l { --w: 236px; }
+    .frag.size-m { --w: 196px; }
+    .frag.size-s { --w: 158px; }
+
+    /* Depth layers: background / floating / focus */
+    .frag.layer-focus {
+      --z: 9;
+      opacity: 1;
+    }
+    .frag.layer-floating {
+      --z: 5;
+      opacity: 0.9;
+    }
+    .frag.layer-background {
+      --z: 2;
+      opacity: 0.36;
+      filter: blur(0.65px);
+      transform:
+        translate3d(calc(var(--x) + var(--px) + var(--tx)), calc(var(--y) + var(--py) + var(--ty)), 0)
+        rotate(calc(var(--base-rot) + var(--rot)))
+        scale(calc(var(--frag-scale, 1) * 0.93));
+      pointer-events: auto;
+    }
+    .frag.layer-background .frag-inner {
+      box-shadow: 0 12px 28px rgba(90, 70, 45, 0.04);
+    }
+    .frag.layer-focus .frag-inner {
+      box-shadow: 0 36px 72px rgba(90, 70, 45, 0.15), 0 12px 24px rgba(90, 70, 45, 0.06);
+    }
+    .frag.layer-floating .frag-inner {
+      box-shadow: 0 22px 48px rgba(90, 70, 45, 0.09), 0 6px 14px rgba(90, 70, 45, 0.04);
+    }
+    /* legacy class aliases (if any remain) */
+    .frag.layer-hero { --z: 9; opacity: 1; }
+    .frag.layer-normal { --z: 5; opacity: 0.9; }
+    .frag.layer-bg { --z: 2; opacity: 0.36; filter: blur(0.65px); }
+    .frag.awaiting-land { opacity: 0 !important; pointer-events: none; }
+    .frag.landing .frag-inner {
+      animation: fragLand 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .frag.nudge {
+      transition: transform 0.35s ease;
+    }
+
+    .frag-float {
+      width: 100%;
+      animation: fragDrift var(--float-dur) ease-in-out var(--float-delay) infinite;
+    }
+    .frag.shaking .frag-float,
+    .frag.entering .frag-float,
+    .frag.awaiting-land .frag-float { animation: none; }
+
+    .frag-inner {
+      position: relative;
+      padding: 16px 16px 14px;
+      min-height: 140px;
+      border-radius: 28px;
+      background: #f5f1ea;
+      border: 1px solid rgba(255,255,255,0.75);
+      box-shadow: var(--card-shadow);
       display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 10px;
+      flex-direction: column;
+      gap: 2px;
     }
+    /* Neutral paper variants — subtle only */
+    .frag.tone-paper .frag-inner { background: #f5f1ea; }
+    .frag.tone-paper2 .frag-inner { background: #f2eee7; }
+    .frag.tone-paper3 .frag-inner { background: #eeeae2; }
+    .frag.tone-paper4 .frag-inner { background: #f7f4ef; }
+    /* Status tints — very low saturation */
+    .frag.tone-recent .frag-inner { background: #f6f0df; }
+    .frag.tone-borrowed .frag-inner { background: #eef1ee; }
+    .frag.tone-person .frag-inner { background: #eef0f2; }
+
+    .frag .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .frag .cat {
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      color: var(--muted-2);
+      font-weight: 500;
+      text-transform: uppercase;
+    }
+    .frag .menu {
+      color: var(--muted-2);
+      font-size: 14px;
+      line-height: 1;
+      opacity: 0.7;
+    }
+    .frag .body {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .frag .icon {
+      font-size: 34px;
+      line-height: 1;
+      filter: drop-shadow(0 8px 12px rgba(80,60,40,0.12));
+      flex-shrink: 0;
+    }
+    .frag.size-l .icon { font-size: 40px; }
+    .frag.size-s .icon { font-size: 28px; }
+    .frag .copy { min-width: 0; flex: 1; }
+    .frag .obj {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: 0.01em;
+      line-height: 1.3;
+    }
+    .frag.size-l .obj { font-size: 16px; }
+    .frag .loc {
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.4;
+      display: flex;
+      align-items: flex-start;
+      gap: 5px;
+    }
+    .frag .loc .pi { opacity: 0.7; font-size: 11px; }
+    .frag .meta {
+      margin-top: auto;
+      padding-top: 12px;
+      font-size: 11px;
+      color: var(--muted-2);
+      font-weight: 400;
+    }
+    .frag .detail { display: none; }
+    .frag.expanded .frag-inner { min-height: 168px; }
+    .frag.expanded .detail {
+      display: block;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(80,60,40,0.08);
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .frag:hover .frag-inner {
+      box-shadow: 0 26px 56px rgba(90, 70, 45, 0.13), 0 8px 16px rgba(90, 70, 45, 0.06);
+    }
+    .frag:active .frag-inner {
+      box-shadow: 0 26px 56px rgba(90, 70, 45, 0.13), 0 8px 16px rgba(90, 70, 45, 0.06);
+    }
+    .frag.highlighted .frag-inner {
+      outline: 1.5px solid rgba(196, 130, 70, 0.45);
+      outline-offset: 2px;
+    }
+    .frag.dimmed { opacity: 0.36; }
+    .frag.pulsing .frag-inner {
+      animation: fragPulse 0.78s ease;
+      outline: 1.5px solid rgba(196, 130, 70, 0.5);
+      outline-offset: 2px;
+    }
+    .frag.entering .frag-float {
+      animation: fragEnter 0.72s ease forwards;
+    }
+
+    @keyframes fragDrift {
+      0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+      50% { transform: translate3d(var(--ox), var(--oy), 0) rotate(var(--or)); }
+    }
+    @keyframes fragEnter {
+      from { opacity: 0; transform: scale(0.84); filter: blur(2px); }
+      to { opacity: 1; transform: scale(1); filter: none; }
+    }
+    @keyframes fragPulse {
+      0% { transform: scale(1); }
+      35% { transform: scale(1.04); }
+      100% { transform: scale(1); }
+    }
+    @keyframes pulse { 50% { filter: brightness(1.12); } }
+    @keyframes riseIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: none; }
+    }
+
+    .shelf-empty {
+      position: absolute;
+      left: 50%;
+      top: 42%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      z-index: 1;
+      max-width: 320px;
+      pointer-events: none;
+    }
+    .shelf-empty p {
+      margin: 0;
+      font-size: 16px;
+      color: var(--ink-soft);
+      font-weight: 500;
+    }
+    .shelf-empty-hint {
+      margin-top: 8px !important;
+      font-size: 12px !important;
+      color: var(--muted) !important;
+      font-weight: 400 !important;
+    }
+    .empty-hint { display: none; } /* chips live under composer in this layout */
+
+    .history-drawer {
+      position: absolute;
+      left: 14px;
+      bottom: 102px;
+      z-index: 7;
+      width: 148px;
+    }
+    .history-drawer > summary {
+      list-style: none;
+      cursor: pointer;
+      display: block;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(255, 252, 248, 0.62);
+      border: 1px solid rgba(255,255,255,0.7);
+      box-shadow: 0 10px 24px rgba(90,70,45,0.06);
+      color: var(--ink);
+    }
+    .history-drawer > summary::-webkit-details-marker { display: none; }
+    .history-drawer .hist-count {
+      font-size: 15px;
+      font-weight: 650;
+      letter-spacing: 0.01em;
+    }
+    .history-drawer .hist-sub {
+      margin-top: 3px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .hist-list {
+      list-style: none;
+      margin: 8px 0 0;
+      padding: 8px 10px;
+      display: none;
+      gap: 6px;
+      max-height: 132px;
+      overflow: auto;
+      background: rgba(255,252,248,0.92);
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.8);
+      box-shadow: 0 8px 20px rgba(90,70,45,0.06);
+    }
+    .history-drawer[open] .hist-list { display: grid; }
+    .hist-item { font-size: 11.5px; color: var(--muted); line-height: 1.4; }
+    .hist-empty { opacity: 0.8; }
+
+    .shake-bar {
+      position: absolute;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%) translateY(10px);
+      z-index: 6;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.28s ease, transform 0.28s ease;
+    }
+    .shake-bar.is-visible {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(-50%) translateY(0);
+    }
+    .btn-shake {
+      border: 1px solid rgba(255,255,255,0.8);
+      background: rgba(255,252,248,0.88);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 11px 18px;
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+      box-shadow: 0 10px 24px rgba(90,70,45,0.08);
+    }
+    .btn-shake:hover { background: #fff; }
+    .btn-shake:active { background: #fff; }
+    .btn-motion {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font-size: 11px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .pinch-hint {
+      font-size: 11px;
+      color: var(--muted-2);
+    }
+
+    /* Ephemeral panel — clarify / query only; not a chat column */
+    .response-dock {
+      position: absolute;
+      left: 50%;
+      top: 8px;
+      transform: translateX(-50%);
+      width: min(340px, 70%);
+      max-height: 34vh;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      z-index: 12;
+      pointer-events: none;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.2s ease;
+    }
+    .response-dock:empty { display: none; }
+    .response-dock.is-open {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: none;
+    }
+    .response-dock.is-open .msg { pointer-events: auto; }
+    .response-dock.mode-capture { display: none !important; }
+    .msg {
+      pointer-events: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      animation: riseIn 0.28s ease;
+    }
+    .msg.user { display: none; }
+    .bubble {
+      padding: 8px 11px;
+      border-radius: 12px;
+      font-size: 12px;
+      line-height: 1.45;
+      background: rgba(255,252,248,0.9);
+      border: 1px solid rgba(255,255,255,0.8);
+      box-shadow: 0 4px 12px rgba(90,70,45,0.06);
+    }
+    .msg.user .bubble {
+      background: rgba(31, 27, 23, 0.82);
+      color: #f7f2ea;
+      border: 0;
+      border-radius: 12px 12px 4px 12px;
+    }
+    .memory-card, .state-diff, .clarify-card, .answer-card {
+      background: rgba(255,252,248,0.92);
+      border: 1px solid rgba(255,255,255,0.8);
+      border-radius: 14px;
+      padding: 10px 12px;
+      box-shadow: 0 4px 12px rgba(90,70,45,0.06);
+      font-size: 12px;
+    }
+    .memory-card .title, .state-diff .title, .clarify-card .title, .answer-card .title {
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .memory-card .row, .state-diff .row { font-size: 12.5px; line-height: 1.5; }
+    .state-diff .arrow { margin: 8px 0; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .state-diff .pill {
+      padding: 4px 8px; border-radius: 999px;
+      background: rgba(255,255,255,0.8); border: 1px solid var(--line); font-size: 12px;
+    }
+    .state-diff .trail { color: #c48246; letter-spacing: 0.1em; }
+    .state-diff .muted { color: var(--muted); font-size: 11px; }
+    .clarify-card { background: rgba(255, 246, 232, 0.95); }
+    .clarify-choices { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     .clarify-chip {
       border: 1px solid var(--line);
       background: #fff;
-      color: var(--text);
-      border-radius: 999px;
-      padding: 7px 12px;
-      font-size: 13px;
-      cursor: pointer;
-    }
-    .clarify-chip:hover {
-      background: var(--accent-soft);
-    }
-    .clarify-reason {
-      font-size: 13px;
-      color: var(--muted);
-      line-height: 1.55;
-      margin-top: 4px;
-    }
-    .msg {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      max-width: 92%;
-      animation: fadeUp 0.28s ease;
-    }
-    .msg.user { align-self: flex-end; align-items: flex-end; }
-    .msg.ai { align-self: flex-start; align-items: flex-start; }
-    .bubble {
-      padding: 12px 16px;
-      border-radius: 18px;
-      font-size: 15px;
-      line-height: 1.55;
-      border: 1px solid var(--line);
-    }
-    .msg.user .bubble {
-      background: var(--user);
-      border-radius: 18px 18px 6px 18px;
-    }
-    .msg.ai .bubble {
-      background: var(--ai);
-      border-radius: 18px 18px 18px 6px;
-    }
-    .memory-card, .state-diff, .clarify-card, .answer-card {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 14px 16px;
-      box-shadow: var(--shadow);
-      min-width: 220px;
-    }
-    .memory-card .title, .state-diff .title, .clarify-card .title, .answer-card .title {
-      font-size: 12px;
-      color: var(--muted);
-      letter-spacing: 0.06em;
-      margin-bottom: 8px;
-    }
-    .memory-card .row, .state-diff .row {
-      font-size: 14px;
-      line-height: 1.7;
-    }
-    .state-diff .arrow {
-      margin: 8px 0;
-      font-size: 14px;
-      color: var(--text);
-    }
-    .state-diff .muted { color: var(--muted); font-size: 13px; }
-    .clarify-card {
-      border-color: rgba(154, 91, 26, 0.25);
-      background: #fffaf4;
-    }
-    .evidence {
-      margin-top: 8px;
-      padding-top: 8px;
-      border-top: 1px solid var(--line);
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.5;
-    }
-    .composer {
-      margin-top: 8px;
-      padding-top: 12px;
-      border-top: 1px solid var(--line);
-    }
-    .composer-row {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-    .composer input[type="text"] {
-      flex: 1;
-      height: 48px;
-      border-radius: 14px;
-      border: 1px solid var(--line);
-      background: #fff;
-      padding: 0 16px;
-      font-size: 15px;
-      outline: none;
-      color: var(--text);
-    }
-    .composer input[type="text"]:focus {
-      border-color: #c9c5bc;
-      box-shadow: 0 0 0 4px rgba(47,46,43,0.06);
-    }
-    .composer button {
-      height: 48px;
-      border: 0;
-      border-radius: 14px;
-      padding: 0 16px;
-      font-weight: 600;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-    .btn-send {
-      background: var(--accent);
-      color: #faf9f6;
-    }
-    .btn-mic {
-      background: #fff;
-      color: var(--text);
-      border: 1px solid var(--line) !important;
-      min-width: 48px;
-    }
-    .btn-mic.listening {
-      background: #7f1d1d;
-      color: #fecaca;
-      border-color: #991b1b !important;
-      animation: pulse 1.2s ease-in-out infinite;
-    }
-    .voice-draft {
-      display: none;
-      margin-top: 10px;
-      padding: 12px 14px;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: #fff;
-    }
-    .voice-draft.active { display: block; }
-    .voice-draft .hint {
-      margin: 0 0 10px;
-      font-size: 13px;
-      color: var(--muted);
-      line-height: 1.5;
-    }
-    .voice-actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    .btn-voice-retry,
-    .btn-voice-cancel {
-      background: #fff;
-      color: var(--text);
-      border: 1px solid var(--line) !important;
-    }
-    .btn-voice-confirm {
-      background: var(--accent);
-      color: #faf9f6;
-    }
-    .error {
-      min-height: 1.2em;
-      margin: 8px 2px 0;
-      color: var(--warn);
-      font-size: 13px;
-    }
-    .shelf {
-      margin-top: 22px;
-      background: rgba(255,255,255,0.7);
-      border: 1px solid var(--line);
-      border-radius: 20px;
-      padding: 16px 18px;
-    }
-    .shelf h2 {
-      margin: 0 0 12px;
-      font-size: 12px;
-      letter-spacing: 0.14em;
-      color: var(--muted);
-      font-weight: 600;
-    }
-    .shelf-list {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      display: grid;
-      gap: 10px;
-    }
-    .shelf-item {
-      background: #fff;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 12px 14px;
-      font-size: 14px;
-    }
-    .shelf-item .top {
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      align-items: baseline;
-    }
-    .shelf-item .meta { color: var(--muted); font-size: 12px; }
-    .shelf-item .loc { color: var(--muted); margin-top: 4px; font-size: 13px; }
-    .shelf-empty { color: var(--muted); font-size: 14px; }
-    .shelf details {
-      margin-top: 12px;
-      color: var(--muted);
-      font-size: 13px;
-    }
-    .shelf summary { cursor: pointer; }
-    .hist-list {
-      list-style: none;
-      margin: 10px 0 0;
-      padding: 0;
-      display: grid;
-      gap: 8px;
-    }
-    .hist-item {
-      opacity: 0.72;
-      background: #faf9f6;
-      border: 1px dashed var(--line);
       border-radius: 12px;
-      padding: 10px 12px;
-      font-size: 13px;
+      padding: 7px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      font-family: inherit;
     }
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: none; }
+    .clarify-reason { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .evidence {
+      margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line);
+      color: var(--muted); font-size: 11.5px;
     }
-    @keyframes pulse {
-      50% { filter: brightness(1.15); }
+    .answer-card .evidence { margin: 0; padding: 0; border: 0; color: var(--ink); font-size: 12.5px; }
+    .answer-card .evidence .meta { color: var(--muted); font-size: 11px; margin-bottom: 4px; }
+    .explain-trace {
+      margin-top: 6px;
+      background: rgba(255,252,248,0.92);
+      border: 1px solid rgba(255,255,255,0.8);
+      border-radius: 12px;
+      overflow: hidden;
     }
-    @media (max-width: 560px) {
-      .page { padding: 28px 14px 100px; }
-      .msg { max-width: 100%; }
+    .explain-trace > summary {
+      list-style: none; cursor: pointer; padding: 8px 10px;
+      font-size: 12px; color: var(--muted);
     }
+    .explain-trace > summary::-webkit-details-marker { display: none; }
+    .explain-trace > summary::before { content: "▸ "; }
+    .explain-trace[open] > summary::before { content: "▾ "; }
+    .explain-trace[open] > summary {
+      border-bottom: 1px solid var(--line); color: var(--ink);
+    }
+    .explain-body { padding: 8px 10px 10px; display: grid; gap: 8px; }
+    .explain-row .k, .explain-block .k { font-size: 10px; color: var(--muted); margin-bottom: 2px; }
+    .explain-row .v, .explain-block .v { font-size: 12px; line-height: 1.45; }
+    .explain-block .meta { margin-top: 2px; font-size: 10px; color: var(--muted); }
+    .state-diff .explain-foot {
+      margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line);
+      font-size: 11px; color: var(--muted); line-height: 1.45;
+    }
+
+    .shake-toast {
+      position: fixed;
+      left: 50%;
+      top: 28px;
+      transform: translateX(-50%) translateY(-6px);
+      background: rgba(31,27,23,0.88);
+      color: #f7f2ea;
+      padding: 9px 14px;
+      border-radius: 999px;
+      font-size: 12.5px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.22s ease, transform 0.22s ease;
+      z-index: 50;
+    }
+    .shake-toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    @media (max-width: 980px) {
+      .shell {
+        grid-template-columns: 1fr;
+        padding: calc(8px + env(safe-area-inset-top, 0px)) 8px env(safe-area-inset-bottom, 0px);
+        min-height: 100dvh;
+        height: 100dvh;
+        max-height: 100dvh;
+        overflow: hidden;
+      }
+      .sidebar { display: none; }
+      .main {
+        padding: 6px 8px 4px;
+        min-height: 0;
+        height: 100%;
+        overflow: hidden;
+        overscroll-behavior: none;
+      }
+      .response-dock { position: fixed; right: 10px; left: 10px; top: auto; bottom: 96px; width: auto; max-height: 28vh; }
+      .greet h1 { font-size: 22px; }
+      .greet p { font-size: 12.5px; margin-top: 4px; }
+      .main-top { padding: 2px 4px 0; }
+      .composer-wrap {
+        width: 100%;
+        margin-top: 10px;
+        gap: 6px;
+      }
+      .composer-row { height: 52px; }
+      .composer-hint { display: none; } /* replaced by compact “可以这样问” */
+      .examples {
+        max-height: 86px;
+        gap: 5px;
+      }
+      .examples-label {
+        font-size: 11px;
+        opacity: 0.9;
+      }
+      .chips {
+        flex-wrap: nowrap;
+        justify-content: flex-start;
+        overflow-x: auto;
+        overflow-y: hidden;
+        gap: 7px;
+        padding: 2px 2px 4px;
+        width: 100%;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+      }
+      .chips::-webkit-scrollbar { display: none; }
+      .chip {
+        flex: 0 0 auto;
+        height: 38px;
+        padding: 0 12px;
+        font-size: 12px;
+        line-height: 38px;
+        background: rgba(255, 255, 255, 0.42);
+        border: 1px solid rgba(255, 255, 255, 0.45);
+        box-shadow: none;
+        color: var(--muted);
+      }
+      .shake-hint {
+        margin-top: 2px;
+        font-size: 11.5px;
+        opacity: 0.9;
+      }
+
+      /* Memory Space becomes the primary visual region */
+      .memory-space {
+        flex: 1 1 auto;
+        min-height: 0;
+        margin-top: 2px;
+        overflow: hidden;
+        overscroll-behavior: none;
+        touch-action: manipulation;
+      }
+      .frag,
+      .chip,
+      .btn-shake,
+      .btn-mic,
+      .btn-send,
+      button,
+      summary {
+        touch-action: manipulation;
+      }
+      .shake-bar {
+        bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+        gap: 0;
+      }
+      .btn-shake {
+        padding: 7px 13px;
+        font-size: 11.5px;
+        font-weight: 500;
+        background: rgba(255, 252, 248, 0.55);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        box-shadow: 0 4px 14px rgba(90, 70, 45, 0.05);
+        color: var(--ink-soft);
+      }
+      .pinch-hint { display: none; }
+
+      /* Safe stage — clear of home indicator + status capsule */
+      #shelfCurrent {
+        inset: 4px 6px calc(48px + env(safe-area-inset-bottom, 0px)) 6px;
+      }
+
+      /* Size ladder — readable main cards; focus only slightly larger */
+      .frag.size-l { --w: 168px; }
+      .frag.size-m { --w: 152px; }
+      .frag.size-s { --w: 130px; }
+
+      /* Subtle visual center + supporting field */
+      .frag.layer-focus {
+        opacity: 1;
+        --z: 12;
+      }
+      .frag.layer-focus.size-m { --w: 168px; }
+      .frag.layer-focus .frag-inner {
+        box-shadow: 0 20px 44px rgba(90, 70, 45, 0.12), 0 6px 14px rgba(90, 70, 45, 0.05);
+      }
+      .frag.layer-floating {
+        opacity: 0.9;
+        --z: 5;
+      }
+      .frag.layer-floating.size-s { opacity: 0.86; }
+      /* Intentional memory echo — soft ghost, not a clipped bug */
+      .frag.layer-background {
+        opacity: 0.22;
+        filter: blur(1.35px);
+        --z: 1;
+        pointer-events: none;
+        transform:
+          translate3d(calc(var(--x) + var(--px) + var(--tx)), calc(var(--y) + var(--py) + var(--ty)), 0)
+          rotate(calc(var(--base-rot) + var(--rot)))
+          scale(calc(var(--frag-scale, 1) * 0.86));
+      }
+      .frag.layer-background .frag-inner {
+        min-height: 76px;
+        padding: 10px 12px;
+        background: rgba(245, 241, 234, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.32);
+        box-shadow: none;
+      }
+      .frag.layer-floating .card-top,
+      .frag.layer-background .card-top,
+      .frag.layer-floating .meta,
+      .frag.layer-background .meta,
+      .frag.layer-background .loc,
+      .frag.layer-background .menu {
+        display: none !important;
+      }
+      .frag.layer-background .body { gap: 6px; }
+      .frag.layer-background .icon { font-size: 22px; opacity: 0.85; }
+      .frag.layer-background .obj { font-size: 12px; opacity: 0.75; font-weight: 500; }
+
+      /* Lightweight status capsule — not a dashboard card */
+      .history-drawer {
+        left: 10px;
+        bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+        width: auto;
+        max-width: 58%;
+        z-index: 8;
+        transform: none;
+        opacity: 0.78;
+      }
+      .history-drawer > summary {
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(255, 252, 248, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.45);
+        box-shadow: none;
+      }
+      .history-drawer .hist-count {
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0;
+        color: var(--ink-soft);
+      }
+      .history-drawer .hist-sub { display: none; }
+      .history-drawer[open] .hist-list {
+        margin-top: 6px;
+        border-radius: 12px;
+      }
+    }
+
   </style>
 </head>
 <body>
-  <div class="page">
-    <header class="header">
-      <h1>Memory Hook</h1>
-      <p class="claim">你的 AI 个人记忆助手</p>
-      <p class="slogan">你只管说，我帮你记。</p>
-    </header>
 
-    <section class="stage">
-      <div class="thread" id="thread">
-        <div class="empty-hint" id="emptyHint">
-          <p class="try-label">试试：</p>
-          <div class="chips" id="exampleChips">
-            <button type="button" class="chip" data-text="我把红色钥匙放到客厅茶几下面抽屉里了。">记住我的钥匙</button>
-            <button type="button" class="chip" data-text="我把钥匙拿到玄关柜了。">更新物品位置</button>
-            <button type="button" class="chip" data-text="我的钥匙在哪？">我的钥匙在哪？</button>
+  <div class="glow-a" aria-hidden="true"></div>
+  <div class="glow-b" aria-hidden="true"></div>
+  <div class="glow-c" aria-hidden="true"></div>
+
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="side-brand">
+        <div class="spark">✦</div>
+        <div class="name">Memory Hook</div>
+      </div>
+      <nav class="side-nav">
+        <a class="active" href="#"><span class="ico">◎</span>记忆空间</a>
+        <a href="#shelfHistoryWrap"><span class="ico">◷</span>对话记录</a>
+        <a href="#"><span class="ico">▢</span>回收站</a>
+        <a href="#"><span class="ico">⚙</span>设置</a>
+      </nav>
+      <div class="side-foot">
+        <div class="side-stat">
+          <div class="n"><span id="statCount">0</span> 条记忆</div>
+          <div class="s">今日新增 · Personal</div>
+          <div class="sparkline" aria-hidden="true"></div>
+        </div>
+        <div class="side-user">
+          <div class="av">Z</div>
+          <div>
+            <div class="who">Ziyi</div>
+            <div class="role">Personal space</div>
           </div>
         </div>
       </div>
+    </aside>
 
-      <form class="composer" id="form">
-        <div class="composer-row">
-          <input id="memory" type="text" placeholder="说点什么，或问我：我的钥匙在哪？" autocomplete="off" />
-          <button type="button" class="btn-mic" id="mic" title="语音输入">🎙</button>
-          <button type="submit" class="btn-send" id="btnSend">发送</button>
+    <section class="main">
+      <div class="main-top">
+        <div class="greet">
+          <h1 id="greetTitle">下午好，Ziyi ☀️</h1>
+          <p>今天，有什么想让我帮你记住的吗？</p>
         </div>
-        <div class="voice-draft" id="voiceDraft">
-          <p class="hint">语音识别结果已填入输入框，可先编辑再确认发送。</p>
-          <div class="voice-actions">
-            <button type="button" class="btn-voice-cancel" id="voiceCancel">取消</button>
-            <button type="button" class="btn-voice-retry" id="voiceRetry">重新录音</button>
-            <button type="button" class="btn-voice-confirm" id="voiceConfirm">确认发送</button>
+        <div class="top-right">
+          <span class="status-pill"><i></i> Memory is ready</span>
+          <div class="bell" aria-hidden="true">🔔</div>
+        </div>
+      </div>
+
+      <div class="composer-wrap">
+        <form class="composer" id="form">
+          <div class="composer-row">
+            <input id="memory" type="text" placeholder="告诉我一件你想记住的事…" autocomplete="off" />
+            <button type="button" class="btn-mic" id="mic" title="语音输入">🎙</button>
+            <button type="submit" class="btn-send" id="btnSend" title="记住它">✦</button>
+          </div>
+          <p class="hook-status" id="hookStatus">✦ Hooking memory...</p>
+          <p class="composer-hint">例如：护照在书房第二个抽屉｜也可以问：我的护照在哪？</p>
+          <div class="voice-draft" id="voiceDraft">
+            <p class="hint">语音已填入，可编辑后再记住。</p>
+            <div class="voice-actions">
+              <button type="button" class="btn-voice-retry" id="voiceRetry">重新录音</button>
+              <button type="button" class="btn-voice-cancel" id="voiceCancel">取消</button>
+              <button type="button" class="btn-voice-confirm" id="voiceConfirm">记住它</button>
+            </div>
+          </div>
+          <p class="error" id="error"></p>
+        </form>
+        <div class="examples">
+          <div class="examples-label">可以这样问</div>
+          <div class="chips" id="exampleChips">
+            <button type="button" class="chip" data-text="我的护照放在书房抽屉">🔑 护照在书房抽屉</button>
+            <button type="button" class="chip" data-text="妈妈把我的充电宝拿走了">👤 充电宝被拿走了</button>
+            <button type="button" class="chip" data-text="我上次把红色钥匙放哪了？">🔎 红色钥匙在哪？</button>
           </div>
         </div>
-        <p class="error" id="error"></p>
-      </form>
-    </section>
+        <div class="shake-hint">📱 摇一摇，看记忆碎片 ✨</div>
+      </div>
 
-    <section class="shelf">
-      <h2>MEMORY SHELF · CURRENT</h2>
-      <ul class="shelf-list" id="shelfCurrent"></ul>
-      <p class="shelf-empty" id="shelfEmpty">还没有当前记忆。</p>
-      <details id="shelfHistoryWrap">
-        <summary id="shelfHistorySummary">查看历史</summary>
-        <ul class="hist-list" id="shelfHistory"></ul>
-      </details>
+      <main class="memory-space" id="memorySpace">
+        <div class="space-label" aria-hidden="true">MEMORY SPACE</div>
+        <div class="ghost-layer" aria-hidden="true">
+          <div class="ghost g1"></div>
+          <div class="ghost g2"></div>
+          <div class="ghost g3"></div>
+        </div>
+
+        <div id="shelfCurrent" aria-label="Memory fragments"></div>
+
+        <div class="shelf-empty" id="shelfEmpty">
+          <p>有什么事，值得留下？</p>
+          <p class="shelf-empty-hint">告诉我一件你想记住的事，它会漂浮在这里。</p>
+        </div>
+
+        <!-- keep emptyHint for JS clearEmptyHint compatibility -->
+        <div class="empty-hint" id="emptyHint"></div>
+
+        <details class="history-drawer" id="shelfHistoryWrap">
+          <summary id="shelfHistorySummary">
+            <div class="hist-count">↗ <span id="histCountNum">0</span> 条记忆 · Personal</div>
+            <div class="hist-sub">今天新增</div>
+          </summary>
+          <ul class="hist-list" id="shelfHistory"></ul>
+        </details>
+
+        <div class="response-dock" id="thread" aria-live="polite"></div>
+
+        <div class="shake-bar" id="shakeBar">
+          <button type="button" class="btn-motion" id="btnMotion" hidden>Enable motion</button>
+          <button type="button" class="btn-shake" id="btnShake">✦ 再摇一次，重新排列</button>
+          <div class="pinch-hint">双指捏合可整理碎片</div>
+        </div>
+      </main>
     </section>
   </div>
 
+  <div id="hookFlyerRoot" aria-hidden="true"></div>
+  <div class="shake-toast" id="shakeToast">Your memories are moving…</div>
+
+  <script src="./js/motion.js"></script>
   <script>
     const STORAGE_KEY = "memory-hook-v16";
     const CONFIDENCE_OK = 0.75;
@@ -1394,15 +2186,20 @@
       };
     }
 
+
     function objectEmoji(obj) {
       const s = String(obj || "");
       if (/钱包/.test(s)) return "👛";
       if (/充电宝|充电线/.test(s)) return "🔋";
       if (/耳机|AirPods|airpods/i.test(s)) return "🎧";
       if (/身份证/.test(s)) return "🪪";
+      if (/护照/.test(s)) return "📘";
+      if (/车|停车/.test(s)) return "🚗";
+      if (/文件夹|文件/.test(s)) return "📁";
+      if (/眼镜/.test(s)) return "👓";
+      if (/伞/.test(s)) return "☂️";
       return "🔑";
     }
-
 
     const form = document.getElementById("form");
     const input = document.getElementById("memory");
@@ -1414,6 +2211,38 @@
     const shelfEmpty = document.getElementById("shelfEmpty");
     const shelfHistory = document.getElementById("shelfHistory");
     const shelfHistorySummary = document.getElementById("shelfHistorySummary");
+    const memorySpace = document.getElementById("memorySpace");
+    const shakeToast = document.getElementById("shakeToast");
+    const shakeBar = document.getElementById("shakeBar");
+    const btnShake = document.getElementById("btnShake");
+    const btnMotion = document.getElementById("btnMotion");
+    const statCount = document.getElementById("statCount");
+    const greetTitle = document.getElementById("greetTitle");
+
+    const fragPhysics = new Map();
+    const spatialById = new Map();
+    let usedSlotCursor = 0;
+    let shakeRaf = 0;
+    let highlightedEntity = null;
+    let expandedFragId = null;
+    let toastTimer = 0;
+    let reshakeHideTimer = 0;
+    let lastMotion = 0;
+    let enteringIds = new Set();
+    let pulsingIds = new Set();
+    let awaitingLandIds = new Set();
+    let shakeCooldownUntil = 0;
+    let parallaxNX = 0;
+    let parallaxNY = 0;
+
+    const _raf = typeof requestAnimationFrame === "function"
+      ? requestAnimationFrame.bind(typeof window !== "undefined" ? window : globalThis)
+      : (fn) => setTimeout(fn, 16);
+
+    function qsAll(root, sel) {
+      if (!root || typeof root.querySelectorAll !== "function") return [];
+      return Array.prototype.slice.call(root.querySelectorAll(sel));
+    }
 
     function escapeHtml(s) {
       return String(s || "")
@@ -1427,12 +2256,25 @@
       if (emptyHint && emptyHint.parentNode) emptyHint.remove();
     }
 
-    // 同一用户回合只允许一条 AI 回复，防止双 submit / 异步重复 append 造成 Clarify 翻倍。
     let aiRepliedForTurn = false;
+
+    function openEphemeralPanel(mode) {
+      if (!thread) return;
+      thread.classList.add("is-open");
+      thread.classList.toggle("mode-capture", mode === "capture");
+      if (mode !== "capture") thread.classList.remove("mode-capture");
+    }
+
+    function closeEphemeralPanel() {
+      if (!thread) return;
+      thread.classList.remove("is-open");
+      // keep DOM for tests; visual closed
+    }
 
     function appendUser(text) {
       clearEmptyHint();
       aiRepliedForTurn = false;
+      thread.innerHTML = "";
       const el = document.createElement("div");
       el.className = "msg user";
       el.innerHTML = `<div class="bubble">${escapeHtml(text)}</div>`;
@@ -1449,6 +2291,7 @@
       el.innerHTML = htmlInner;
       thread.appendChild(el);
       thread.scrollTop = thread.scrollHeight;
+      openEphemeralPanel("dialog");
       return true;
     }
 
@@ -1473,7 +2316,6 @@
     }
 
     function clarifyCardHtml(text, explain) {
-      // 单次 Clarify：一条 AI bubble + 一张 Clarify Card。
       if (explain && explain.kind === "ambiguous") {
         const chips = (explain.candidates || [])
           .map(
@@ -1486,7 +2328,7 @@
         const bubbleText = explain.reason || text;
         return `<div class="bubble">${escapeHtml(bubbleText)}</div>
           <div class="clarify-card">
-            <div class="title">CLARIFY</div>
+            <div class="title">你指的是哪一件？</div>
             ${chips ? `<div class="clarify-choices">${chips}</div>` : ""}
           </div>`;
       }
@@ -1532,11 +2374,11 @@
       const foot = explain
         ? `<div class="explain-foot">${escapeHtml(explain.reason)}<br/>${escapeHtml(explain.note || "")}</div>`
         : "";
-      return `<div class="bubble">好的，我更新了${escapeHtml(next.object)}的位置。</div>
+      return `<div class="bubble">已更新。</div>
         <div class="state-diff">
-          <div class="title">STATE UPDATE</div>
-          <div class="row">${escapeHtml(next.object)}</div>
-          <div class="arrow">${escapeHtml(oldLoc)} → ${escapeHtml(newLoc)}</div>
+          <div class="title">MEMORY TRANSITION</div>
+          <div class="row">${objectEmoji(next.object)} ${escapeHtml(next.object)}</div>
+          <div class="arrow"><span class="pill">${escapeHtml(oldLoc)}</span><span class="trail">────→</span><span class="pill">${escapeHtml(newLoc)}</span></div>
           <div class="row"><strong>Current</strong> ${escapeHtml(next.object)} → ${escapeHtml(newLoc)}</div>
           <div class="muted" style="margin-top:8px">History</div>
           ${hist || `<div class="muted">· ${escapeHtml(next.object)} → ${escapeHtml(oldLoc)}</div>`}
@@ -1548,57 +2390,32 @@
       if (!explain) return "";
       if (explain.kind === "uncertain" || explain.kind === "ambiguous") return "";
       if (explain.kind === "state_update") return "";
-
       const blocks = [];
       if (explain.entity) {
-        blocks.push(
-          `<div class="explain-row"><div class="k">识别对象</div><div class="v">${escapeHtml(
-            explain.entity
-          )}</div></div>`
-        );
+        blocks.push(`<div class="explain-row"><div class="k">识别对象</div><div class="v">${escapeHtml(explain.entity)}</div></div>`);
       }
       if (explain.kind === "history") {
         if (explain.historicalState) {
-          blocks.push(
-            `<div class="explain-row"><div class="k">历史位置</div><div class="v">${escapeHtml(
-              explain.historicalState
-            )}</div></div>`
-          );
+          blocks.push(`<div class="explain-row"><div class="k">历史位置</div><div class="v">${escapeHtml(explain.historicalState)}</div></div>`);
         }
       } else if (explain.currentState) {
-        blocks.push(
-          `<div class="explain-row"><div class="k">当前状态</div><div class="v">${escapeHtml(
-            explain.currentState
-          )}</div></div>`
-        );
+        blocks.push(`<div class="explain-row"><div class="k">当前状态</div><div class="v">${escapeHtml(explain.currentState)}</div></div>`);
       }
       if (explain.evidenceText) {
         blocks.push(
-          `<div class="explain-block"><div class="k">最近有效记录</div><div class="v">“${escapeHtml(
-            explain.evidenceText
-          )}”</div>${
-            explain.evidenceTime
-              ? `<div class="meta">${escapeHtml(explain.evidenceTime)}</div>`
-              : ""
+          `<div class="explain-block"><div class="k">最近有效记录</div><div class="v">“${escapeHtml(explain.evidenceText)}”</div>${
+            explain.evidenceTime ? `<div class="meta">${escapeHtml(explain.evidenceTime)}</div>` : ""
           }</div>`
         );
       }
       if (explain.reason) {
-        blocks.push(
-          `<div class="explain-row"><div class="k">判断依据</div><div class="v">${escapeHtml(
-            explain.reason
-          )}</div></div>`
-        );
+        blocks.push(`<div class="explain-row"><div class="k">判断依据</div><div class="v">${escapeHtml(explain.reason)}</div></div>`);
       }
       if (!blocks.length) return "";
-      return `<details class="explain-trace">
-        <summary>为什么这么回答？</summary>
-        <div class="explain-body">${blocks.join("")}</div>
-      </details>`;
+      return `<details class="explain-trace"><summary>为什么？</summary><div class="explain-body">${blocks.join("")}</div></details>`;
     }
 
     function answerBlockHtml(answer, explain) {
-      // Evidence Trace 默认收起；数据来自 Retrieval explain，不再单独猜。
       return `<div class="bubble">${escapeHtml(answer)}</div>${explainTraceHtml(explain)}`;
     }
 
@@ -1609,6 +2426,694 @@
         return objectsMatch(k, object) || objectsMatch(st.object, object);
       });
       return hit ? snapshot[hit] : null;
+    }
+
+    function hashStr(s) {
+      let h = 2166136261;
+      const str = String(s || "");
+      for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return h >>> 0;
+    }
+
+    function mulberry32(a) {
+      return function () {
+        let t = (a += 0x6d2b79f5);
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function clamp(n, a, b) {
+      return Math.max(a, Math.min(b, n));
+    }
+
+    // Curated Memory Space slots — irregular but composed (not random).
+    // Avoid BL History safe-zone and bottom Shake bar (handled via #shelfCurrent inset).
+    const DESKTOP_FOCUS = [
+      { id: "center-focus", x: 34, y: 22, rot: -1.4, size: "l" },
+    ];
+    const DESKTOP_FLOATING = [
+      { id: "left-top", x: 8, y: 6, rot: -2.0, size: "m" },
+      { id: "left-middle", x: 12, y: 28, rot: 1.7, size: "m" },
+      { id: "center-bottom", x: 42, y: 42, rot: 0.9, size: "m" },
+      { id: "right-top", x: 64, y: 8, rot: 1.5, size: "m" },
+      { id: "right-middle", x: 62, y: 32, rot: -1.3, size: "m" },
+    ];
+    const DESKTOP_BACKGROUND = [
+      { id: "background-left", x: 2, y: 1, rot: -2.6, size: "s" },
+      { id: "background-right", x: 74, y: 2, rot: 2.3, size: "s" },
+      { id: "background-right-low", x: 70, y: 44, rot: -0.8, size: "s" },
+    ];
+    // Desktop keeps curated slots. Mobile uses composed S / diagonal flow (below).
+    const MOBILE_FOCUS = [{ id: "m-focus", x: 30, y: 10, rot: -2.2, size: "m" }];
+    const MOBILE_FLOATING = [
+      { id: "m-tr", x: 52, y: 3, rot: 3.4, size: "s" },
+      { id: "m-ml", x: 3, y: 32, rot: -3.6, size: "m" },
+      { id: "m-mr", x: 48, y: 40, rot: 2.2, size: "s" },
+      { id: "m-bl", x: 14, y: 58, rot: -1.8, size: "m" },
+    ];
+    // Soft echoes — fully intentional ghosts, kept mostly on-stage (not clipped bugs).
+    const MOBILE_BACKGROUND = [
+      { id: "m-echo-br", x: 58, y: 62, rot: 4.2, size: "s" },
+      { id: "m-echo-tl", x: 4, y: 0, rot: -3.8, size: "s" },
+    ];
+
+    // Alternate flow (mirrored soft-S) for shake reshuffle variety.
+    const MOBILE_FLOW_B = {
+      focus: [{ id: "m-focus-b", x: 26, y: 12, rot: 2.0, size: "m" }],
+      floating: [
+        { id: "m-tl-b", x: 2, y: 4, rot: -3.2, size: "s" },
+        { id: "m-mr-b", x: 50, y: 28, rot: 2.8, size: "m" },
+        { id: "m-ml-b", x: 6, y: 44, rot: -2.4, size: "s" },
+        { id: "m-br-b", x: 42, y: 58, rot: 1.6, size: "m" },
+      ],
+      background: [
+        { id: "m-echo-bl-b", x: 2, y: 64, rot: -4.0, size: "s" },
+        { id: "m-echo-tr-b", x: 60, y: 2, rot: 3.6, size: "s" },
+      ],
+    };
+
+    let layoutSeed = 1;
+
+    function isCompactLayout() {
+      return typeof window !== "undefined" && window.innerWidth && window.innerWidth <= 980;
+    }
+
+    function getSlotSets() {
+      if (isCompactLayout()) {
+        if ((layoutSeed & 1) === 1) {
+          return MOBILE_FLOW_B;
+        }
+        return {
+          focus: MOBILE_FOCUS,
+          floating: MOBILE_FLOATING,
+          background: MOBILE_BACKGROUND,
+        };
+      }
+      return {
+        focus: DESKTOP_FOCUS,
+        floating: DESKTOP_FLOATING,
+        background: DESKTOP_BACKGROUND,
+      };
+    }
+
+    /** Mobile field: ≤5 main cards + ≤2 soft echoes. */
+    function fieldMemories(currentMems) {
+      if (!isCompactLayout()) return currentMems;
+      const mainN = Math.min(5, currentMems.length);
+      const echoN = Math.min(2, Math.max(0, currentMems.length - mainN));
+      return currentMems.slice(0, mainN + echoN);
+    }
+
+    function makeFloatParams(id) {
+      const h = hashStr(id);
+      const rand = mulberry32(h);
+      // Subtle idle float: mostly 2–5px vertical, tiny horizontal / rotation.
+      return {
+        ox: (rand() - 0.5) * 2.4,
+        oy: -(2 + rand() * 3),
+        or: (rand() - 0.5) * 1.5,
+        dur: 7.5 + rand() * 6.5,
+        delay: rand() * 4.2,
+        depth: 1 + (h % 3),
+      };
+    }
+
+    function ensureSpatial(id) {
+      if (spatialById.has(id)) return spatialById.get(id);
+      const float = makeFloatParams(id);
+      const sp = {
+        xPct: 40,
+        yPct: 30,
+        rot: 0,
+        size: "m",
+        layer: "normal",
+        depth: float.depth,
+        ox: float.ox,
+        oy: float.oy,
+        or: float.or,
+        dur: float.dur,
+        delay: float.delay,
+        createdAt: Date.now(),
+        needsSlot: true,
+      };
+      spatialById.set(id, sp);
+      return sp;
+    }
+
+    function applySlot(sp, slot, layer) {
+      // Soft jitter on curated anchors — keeps visual flow, avoids rigid grid.
+      const h = hashStr((sp._id || "") + "|" + (slot.id || "") + "|" + layoutSeed);
+      const jx = (((h % 17) - 8) * 0.22);
+      const jy = ((((h >>> 4) % 15) - 7) * 0.2);
+      const jr = ((((h >>> 8) % 11) - 5) * 0.18);
+      if (layer === "background") {
+        // Echoes stay mostly on-stage (intentional soft ghosts).
+        sp.xPct = clamp(slot.x + jx, 0, 64);
+        sp.yPct = clamp(slot.y + jy, 0, 68);
+      } else if (isCompactLayout()) {
+        sp.xPct = clamp(slot.x + jx, 0, 56);
+        sp.yPct = clamp(slot.y + jy, 0, 64);
+      } else {
+        sp.xPct = clamp(slot.x + jx, 1, 76);
+        sp.yPct = clamp(slot.y + jy, 1, 56);
+      }
+      sp.rot = clamp(slot.rot + jr, -6, 6);
+      sp.size = slot.size;
+      sp.layer = layer;
+      sp.slotId = slot.id;
+      sp.needsSlot = false;
+      if (layer === "focus") {
+        sp.fragScale = 1.04;
+        sp.zVar = 12;
+      } else if (layer === "floating") {
+        sp.fragScale = 0.96 + (((h >>> 12) % 7) * 0.01);
+        sp.zVar = 4 + ((h >>> 3) % 3);
+      } else {
+        sp.fragScale = 0.88;
+        sp.zVar = 1;
+      }
+    }
+
+    function permuteIndices(n, seed) {
+      const arr = Array.from({ length: n }, (_, i) => i);
+      const rand = mulberry32(seed >>> 0);
+      for (let i = n - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        const tmp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = tmp;
+      }
+      return arr;
+    }
+
+    function rebalanceLayers(currentMems, { forceSlots = false, shuffle = false } = {}) {
+      // Newest → Focus (1); next → Floating; older → Background echoes.
+      const compact = isCompactLayout();
+      const pool = compact ? fieldMemories(currentMems) : currentMems;
+      if (shuffle) layoutSeed = (layoutSeed * 1664525 + 1013904223) >>> 0;
+      const sets = getSlotSets();
+      const focusN = pool.length ? 1 : 0;
+      let bgN = 0;
+      if (compact) {
+        // Cap: 5 main (1+4) + ≤2 echoes.
+        const mainRest = Math.min(4, Math.max(0, pool.length - focusN));
+        bgN = Math.min(2, Math.max(0, pool.length - focusN - mainRest));
+      } else {
+        if (pool.length >= 6) bgN = Math.min(sets.background.length, pool.length - focusN - 3);
+        else if (pool.length >= 4) bgN = Math.min(1, sets.background.length);
+      }
+      bgN = Math.max(0, Math.min(bgN, pool.length - focusN));
+      const floatingN = Math.min(
+        sets.floating.length,
+        Math.max(0, pool.length - focusN - bgN)
+      );
+      const focusMems = pool.slice(0, focusN);
+      const floatingMems = pool.slice(focusN, focusN + floatingN);
+      const bgMems = pool.slice(focusN + floatingN, focusN + floatingN + bgN);
+
+      const focusOrder = shuffle ? permuteIndices(sets.focus.length, layoutSeed) : null;
+      const floatOrder = shuffle ? permuteIndices(sets.floating.length, layoutSeed ^ 0x9e3779b9) : null;
+      const bgOrder = shuffle ? permuteIndices(sets.background.length, layoutSeed ^ 0x85ebca6b) : null;
+
+      function place(m, i, slots, layer, depth, order) {
+        const sp = ensureSpatial(m.id);
+        sp._id = m.id;
+        const prevLayer = sp.layer;
+        sp.layer = layer;
+        sp.depth = depth;
+        const idx = order ? order[i % order.length] : i % slots.length;
+        const slot = slots[idx % slots.length];
+        if (forceSlots || sp.needsSlot || prevLayer !== layer || sp.slotId !== slot.id || shuffle) {
+          applySlot(sp, slot, layer);
+        } else if (layer === "focus") {
+          sp.fragScale = 1.04;
+          sp.zVar = 12;
+        }
+        if (layer === "focus") sp.size = "m";
+        else if (layer === "background") sp.size = "s";
+        else sp.size = slot.size;
+        sp.organic = false;
+      }
+
+      focusMems.forEach((m, i) => place(m, i, sets.focus, "focus", 3, focusOrder));
+      floatingMems.forEach((m, i) => place(m, i, sets.floating, "floating", 2, floatOrder));
+      bgMems.forEach((m, i) => place(m, i, sets.background, "background", 1, bgOrder));
+
+      if (compact) {
+        const shown = new Set(pool.map((m) => m.id));
+        currentMems.forEach((m) => {
+          if (!shown.has(m.id)) {
+            const sp = ensureSpatial(m.id);
+            sp.layer = "omit";
+          }
+        });
+      }
+    }
+
+    function softNudgeSpatial() {
+      const compact = isCompactLayout();
+      spatialById.forEach((sp) => {
+        if (sp.layer === "omit") return;
+        if (compact) {
+          if (sp.layer === "background") {
+            sp.xPct = clamp(sp.xPct + (Math.random() - 0.5) * 0.6, 0, 64);
+            sp.yPct = clamp(sp.yPct + (Math.random() - 0.5) * 0.6, 0, 68);
+          } else {
+            sp.xPct = clamp(sp.xPct + (Math.random() - 0.5) * 0.7, 0, 56);
+            sp.yPct = clamp(sp.yPct + (Math.random() - 0.5) * 0.7, 0, 64);
+          }
+          sp.rot = clamp(sp.rot + (Math.random() - 0.5) * 0.4, -6, 6);
+          return;
+        }
+        sp.xPct = clamp(sp.xPct + (Math.random() - 0.5) * 1.2, 1, 76);
+        sp.yPct = clamp(sp.yPct + (Math.random() - 0.5) * 1.0, 1, 56);
+        sp.rot = clamp(sp.rot + (Math.random() - 0.5) * 0.8, -6, 6);
+      });
+    }
+
+    function fragTone(m) {
+      const age = Date.now() - new Date(m.timestamp || Date.now()).getTime();
+      if (age < 90 * 1000) return "tone-recent";
+      if (m.person && (m.status === "lent" || m.event === "lend" || m.type === "lending")) {
+        return "tone-borrowed";
+      }
+      if (m.person) return "tone-person";
+      const papers = ["tone-paper", "tone-paper2", "tone-paper3", "tone-paper4"];
+      return papers[hashStr(m.id) % papers.length];
+    }
+
+    function categoryLabel(m) {
+      if (m.person && (m.status === "lent" || m.event === "lend" || m.type === "lending")) return "物品 · 人物";
+      if (m.person) return "物品 · 人物";
+      if (m.location) return "物品 · 位置";
+      return "记忆";
+    }
+
+    function ensurePhysics(id, el) {
+      if (!fragPhysics.has(id)) {
+        fragPhysics.set(id, { vx: 0, vy: 0, vr: 0, tx: 0, ty: 0, rot: 0, el });
+      } else {
+        fragPhysics.get(id).el = el;
+      }
+      return fragPhysics.get(id);
+    }
+
+    function applyPhysicsStyles(p) {
+      if (!p.el || !p.el.style) return;
+      p.el.style.setProperty("--tx", p.tx.toFixed(2) + "px");
+      p.el.style.setProperty("--ty", p.ty.toFixed(2) + "px");
+      p.el.style.setProperty("--rot", p.rot.toFixed(2) + "deg");
+    }
+
+    function applyParallaxStyles() {
+      qsAll(shelfCurrent, ".frag").forEach((el) => {
+        const depth = Number(el.dataset.depth || 2);
+        const max = depth === 1 ? 4 : depth === 2 ? 10 : 16;
+        el.style.setProperty("--px", (parallaxNX * max).toFixed(2) + "px");
+        el.style.setProperty("--py", (parallaxNY * max).toFixed(2) + "px");
+      });
+    }
+
+    function showShakeToast() {
+      if (!shakeToast) return;
+      shakeToast.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => shakeToast.classList.remove("show"), 1100);
+    }
+
+    function showReshakePill() {
+      if (!shakeBar) return;
+      shakeBar.classList.add("is-visible");
+      clearTimeout(reshakeHideTimer);
+      reshakeHideTimer = setTimeout(() => {
+        shakeBar.classList.remove("is-visible");
+      }, 4200);
+    }
+
+    function stepPhysics() {
+      let alive = false;
+      fragPhysics.forEach((p) => {
+        p.vx *= 0.87;
+        p.vy *= 0.87;
+        p.vr *= 0.85;
+        p.tx += p.vx;
+        p.ty += p.vy;
+        p.rot += p.vr;
+        p.vx += -p.tx * 0.065;
+        p.vy += -p.ty * 0.065;
+        p.vr += -p.rot * 0.07;
+        if (Math.abs(p.tx) < 0.2 && Math.abs(p.ty) < 0.2 && Math.abs(p.vx) < 0.06) {
+          p.tx = 0; p.ty = 0; p.vx = 0; p.vy = 0;
+        } else alive = true;
+        if (Math.abs(p.rot) < 0.08 && Math.abs(p.vr) < 0.03) {
+          p.rot = 0; p.vr = 0;
+        } else alive = true;
+        applyPhysicsStyles(p);
+      });
+      if (alive) shakeRaf = _raf(stepPhysics);
+      else {
+        shakeRaf = 0;
+        qsAll(shelfCurrent, ".frag").forEach((el) => el.classList && el.classList.remove("shaking"));
+      }
+    }
+
+    function triggerMemoryShake(strength = 1) {
+      const now = Date.now();
+      if (now < shakeCooldownUntil) return;
+      shakeCooldownUntil = now + 1800;
+      const nodes = qsAll(shelfCurrent, ".frag");
+      if (!nodes.length) return;
+      showShakeToast();
+      const { w: stageW, h: stageH } = stageSize();
+      const oldPx = new Map();
+      nodes.forEach((el) => {
+        const id = el.dataset && el.dataset.id;
+        const sp = spatialById.get(id);
+        if (!sp) return;
+        oldPx.set(id, { x: (sp.xPct / 100) * stageW, y: (sp.yPct / 100) * stageH, rot: sp.rot });
+      });
+      nodes.forEach((el, i) => {
+        const id = el.dataset && el.dataset.id;
+        const p = ensurePhysics(id, el);
+        el.classList && el.classList.add("shaking");
+        const ang = Math.random() * Math.PI * 2;
+        const mag = (10 + Math.random() * 16) * strength;
+        setTimeout(() => {
+          p.vx += Math.cos(ang) * mag * 0.28;
+          p.vy += Math.sin(ang) * mag * 0.28;
+          p.vr += (Math.random() - 0.5) * 3.2 * strength;
+          if (!shakeRaf) shakeRaf = _raf(stepPhysics);
+        }, i * 22);
+      });
+      setTimeout(() => {
+        const currents = Object.values(currentState || {})
+          .map((s) => memories.find((m) => m.id === s.memoryId))
+          .filter(Boolean)
+          .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        // Reshuffle into layered composition, then soft variance.
+        rebalanceLayers(currents, { forceSlots: true, shuffle: true });
+        softNudgeSpatial();
+        const { w: w2, h: h2 } = stageSize();
+        nodes.forEach((el) => {
+          const id = el.dataset && el.dataset.id;
+          const sp = spatialById.get(id);
+          const prev = oldPx.get(id);
+          if (!sp || !prev) return;
+          const nx = (sp.xPct / 100) * w2;
+          const ny = (sp.yPct / 100) * h2;
+          const p = ensurePhysics(id, el);
+          p.tx += prev.x - nx;
+          p.ty += prev.y - ny;
+          p.rot += prev.rot - sp.rot;
+          el.style.setProperty("--x", nx.toFixed(1) + "px");
+          el.style.setProperty("--y", ny.toFixed(1) + "px");
+          el.style.setProperty("--base-rot", sp.rot.toFixed(2) + "deg");
+          applyPhysicsStyles(p);
+        });
+        // sync layer classes after settle
+        renderShelf();
+        // restore in-flight physics offsets after re-render
+        nodes.forEach((el) => {
+          const id = el.dataset && el.dataset.id;
+          const p = fragPhysics.get(id);
+          const fresh = shelfCurrent.querySelector && shelfCurrent.querySelector(`.frag[data-id="${id}"]`);
+          if (p && fresh) {
+            p.el = fresh;
+            applyPhysicsStyles(p);
+          }
+        });
+        if (!shakeRaf) shakeRaf = _raf(stepPhysics);
+      }, 300);
+      setTimeout(() => {
+        qsAll(shelfCurrent, ".frag").forEach((el) => el.classList && el.classList.remove("shaking"));
+        showReshakePill();
+      }, 880);
+    }
+
+    function impulseFromMotion(ax, ay) {
+      const nodes = qsAll(shelfCurrent, ".frag");
+      if (!nodes.length) return;
+      nodes.forEach((el) => {
+        const id = el.dataset && el.dataset.id;
+        const p = ensurePhysics(id, el);
+        el.classList && el.classList.add("shaking");
+        p.vx += ax * 1.1 + (Math.random() - 0.5) * 2.5;
+        p.vy += -ay * 1.1 + (Math.random() - 0.5) * 2.5;
+        p.vr += (Math.random() - 0.5) * 2;
+      });
+      if (!shakeRaf) shakeRaf = _raf(stepPhysics);
+      setTimeout(() => triggerMemoryRediscovery(0.65), 160);
+    }
+
+    /** Single rediscovery entry — button + physical shake both call this. */
+    function triggerMemoryRediscovery(strength = 1) {
+      return triggerMemoryShake(strength);
+    }
+
+    function onDeviceOrientation(e) {
+      const g = typeof e.gamma === "number" ? e.gamma : 0;
+      const b = typeof e.beta === "number" ? e.beta : 0;
+      parallaxNX = clamp(g / 35, -1, 1);
+      parallaxNY = clamp((b - 45) / 35, -1, 1);
+      applyParallaxStyles();
+    }
+
+    const motionApi =
+      (typeof MemoryHookMotion !== "undefined" && MemoryHookMotion.createMotionController)
+        ? MemoryHookMotion.createMotionController()
+        : null;
+
+    async function enableMotionPermission() {
+      try {
+        if (!motionApi || !motionApi.isSupported()) {
+          errorEl.textContent = "当前设备无法启用运动感应，请用按钮。";
+          return false;
+        }
+        if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+          try { await DeviceOrientationEvent.requestPermission(); } catch (_e) {}
+        }
+        const res = await motionApi.startMotionTracking({ requestPermission: true });
+        if (!res || !res.ok) {
+          errorEl.textContent = "未获得运动权限，可用 Shake 按钮。";
+          return false;
+        }
+        if (typeof window.addEventListener === "function") {
+          window.addEventListener("deviceorientation", onDeviceOrientation, { passive: true });
+        }
+        if (btnMotion) btnMotion.hidden = true;
+        return true;
+      } catch (_err) {
+        errorEl.textContent = "当前设备无法启用运动感应，请用按钮。";
+        return false;
+      }
+    }
+
+    function setupMotionUi() {
+      if (!motionApi) return;
+
+      motionApi.onShake((payload) => {
+        lastMotion = Date.now();
+        showShakeToast();
+        if (payload && typeof payload.ax === "number") {
+          impulseFromMotion(payload.ax, payload.ay || 0);
+        } else {
+          triggerMemoryRediscovery(0.65);
+        }
+      });
+
+      if (motionApi.needsPermission() && btnMotion) {
+        btnMotion.hidden = false;
+        btnMotion.addEventListener("click", () => enableMotionPermission());
+        return;
+      }
+
+      // Non-iOS / already allowed: start quietly; desktop unsupported → no throw.
+      motionApi.startMotionTracking({ requestPermission: false }).then((res) => {
+        if (res && res.ok && typeof window.addEventListener === "function") {
+          window.addEventListener("deviceorientation", onDeviceOrientation, { passive: true });
+        }
+      });
+    }
+
+    function setupPointerParallax() {
+      if (!memorySpace || typeof memorySpace.addEventListener !== "function") return;
+      memorySpace.addEventListener("pointermove", (e) => {
+        const r = memorySpace.getBoundingClientRect ? memorySpace.getBoundingClientRect() : null;
+        if (!r || !r.width) return;
+        parallaxNX = clamp((e.clientX - (r.left + r.width / 2)) / (r.width / 2), -1, 1);
+        parallaxNY = clamp((e.clientY - (r.top + r.height / 2)) / (r.height / 2), -1, 1);
+        applyParallaxStyles();
+      });
+      memorySpace.addEventListener("pointerleave", () => {
+        parallaxNX = 0; parallaxNY = 0; applyParallaxStyles();
+      });
+    }
+
+    function fragmentStateLabel(m) {
+      if (m.person) {
+        if (m.status === "lent" || m.event === "lend" || m.type === "lending") return `借给 · ${m.person}`;
+        if (m.status === "with_person" || m.event === "possession_transfer" || m.type === "possession") {
+          return `在 · ${m.person}`;
+        }
+        return String(m.person);
+      }
+      if (m.location) return String(locationPath(m.location) || "").replace(/\s*>\s*/g, "");
+      return "—";
+    }
+
+    function historyLines(object, exceptId) {
+      return historyForObject(object, exceptId)
+        .slice(0, 4)
+        .map((h) => {
+          const loc = h.location
+            ? String(locationAnswer(h.location)).replace(/\s*>\s*/g, "")
+            : h.person ? formatPersonLoc(h) : "";
+          return `${escapeHtml(loc)} · ${escapeHtml(relativeTime(h.timestamp))}`;
+        });
+    }
+
+    function stageSize() {
+      const el = shelfCurrent;
+      if (!el || !el.getBoundingClientRect) return { w: 900, h: 520 };
+      const r = el.getBoundingClientRect();
+      return { w: Math.max(320, r.width || 900), h: Math.max(360, r.height || 520) };
+    }
+
+
+    function wait(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    function setHooking(on, label) {
+      if (form) form.classList.toggle("hooking", Boolean(on));
+      if (hookStatus) {
+        hookStatus.textContent = label || "✦ Hooking memory...";
+        hookStatus.classList.toggle("show", Boolean(on));
+      }
+    }
+
+    function resolveCurrentMemoryId(object, fallbackId) {
+      const st =
+        currentState &&
+        (currentState[entityStateKey(object)] ||
+          Object.values(currentState).find((s) => objectsMatch(s.object, object)));
+      return (st && st.memoryId) || fallbackId;
+    }
+
+    function nudgeNeighbors(centerId) {
+      const nodes = qsAll(shelfCurrent, ".frag");
+      const center = nodes.find((el) => el.dataset && el.dataset.id === centerId);
+      if (!center || !center.getBoundingClientRect) return;
+      const cr = center.getBoundingClientRect();
+      const cx = cr.left + cr.width / 2;
+      const cy = cr.top + cr.height / 2;
+      let count = 0;
+      nodes.forEach((el) => {
+        if (!el.dataset || el.dataset.id === centerId) return;
+        if (count >= 2) return;
+        const r = el.getBoundingClientRect();
+        const dx = r.left + r.width / 2 - cx;
+        const dy = r.top + r.height / 2 - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 220) return;
+        count += 1;
+        const p = ensurePhysics(el.dataset.id, el);
+        p.tx += (dx >= 0 ? 1 : -1) * (3 + Math.random() * 2);
+        p.ty += (dy >= 0 ? 1 : -1) * (2 + Math.random() * 2);
+        if (!shakeRaf) shakeRaf = _raf(stepPhysics);
+      });
+    }
+
+    async function playHookFlyIn(memory) {
+      const id = resolveCurrentMemoryId(memory.object, memory.id);
+      const sp = ensureSpatial(id);
+      sp._id = id;
+      // Newest memory lands in curated focus slot.
+      const focusSlot = getSlotSets().focus[0];
+      applySlot(sp, focusSlot, "focus");
+      sp.size = focusSlot.size;
+      sp.depth = 3;
+
+      awaitingLandIds.add(id);
+      renderShelf();
+
+      const target = shelfCurrent && typeof shelfCurrent.querySelector === "function"
+        ? shelfCurrent.querySelector(`.frag[data-id="${CSS.escape ? CSS.escape(id) : id}"]`)
+        : null;
+
+      const formRect = form && form.getBoundingClientRect ? form.getBoundingClientRect() : { left: 200, top: 160, width: 400, height: 58 };
+      const startX = formRect.left + formRect.width / 2 - 90;
+      const startY = formRect.top - 12;
+      const rot0 = (Math.random() - 0.5) * 12;
+
+      if (!hookFlyerRoot || !target || !target.getBoundingClientRect) {
+        awaitingLandIds.delete(id);
+        markSpaceFeedback({ enterIds: [id] });
+        return;
+      }
+
+      const flyer = document.createElement("div");
+      flyer.className = "hook-flyer";
+      flyer.innerHTML = `<div class="hf-icon">${objectEmoji(memory.object)}</div>
+        <div class="hf-obj">${escapeHtml(memory.object)}</div>
+        <div class="hf-loc">${escapeHtml(fragmentStateLabel(memory))}</div>`;
+      flyer.style.left = "0px";
+      flyer.style.top = "0px";
+      flyer.style.opacity = "0";
+      flyer.style.transform = `translate(${startX}px, ${startY + 24}px) rotate(${rot0}deg) scale(0.65)`;
+      hookFlyerRoot.appendChild(flyer);
+
+      // appear
+      await wait(30);
+      flyer.style.transition = "transform 0.42s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.35s ease";
+      flyer.style.opacity = "1";
+      flyer.style.transform = `translate(${startX}px, ${startY - 8}px) rotate(${rot0 * 0.3}deg) scale(1.08)`;
+      await wait(380);
+      flyer.style.transform = `translate(${startX}px, ${startY}px) rotate(0deg) scale(1)`;
+      await wait(300);
+
+      // fly to target
+      const to = target.getBoundingClientRect();
+      const endX = to.left;
+      const endY = to.top;
+      const endRot = sp ? sp.rot : 0;
+      flyer.style.transition = "transform 0.78s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.5s ease";
+      flyer.style.transform = `translate(${endX}px, ${endY}px) rotate(${endRot}deg) scale(1)`;
+      await wait(780);
+
+      flyer.style.opacity = "0";
+      awaitingLandIds.delete(id);
+      renderShelf();
+      const landed = shelfCurrent.querySelector(`.frag[data-id="${CSS.escape ? CSS.escape(id) : id}"]`);
+      if (landed && landed.classList) {
+        landed.classList.add("landing");
+        setTimeout(() => landed.classList.remove("landing"), 480);
+      }
+      nudgeNeighbors(id);
+      if (flyer.parentNode) flyer.parentNode.removeChild(flyer);
+    }
+
+    function markSpaceFeedback({ enterIds = [], pulseIds = [] } = {}) {
+      enteringIds = new Set(enterIds);
+      pulsingIds = new Set(pulseIds);
+      renderShelf();
+      if (enterIds.length) {
+        setTimeout(() => {
+          enterIds.forEach((id) => enteringIds.delete(id));
+          qsAll(shelfCurrent, ".frag.entering").forEach((el) => el.classList && el.classList.remove("entering"));
+        }, 780);
+      }
+      if (pulseIds.length) {
+        setTimeout(() => {
+          pulseIds.forEach((id) => pulsingIds.delete(id));
+          qsAll(shelfCurrent, ".frag.pulsing").forEach((el) => el.classList && el.classList.remove("pulsing"));
+        }, 900);
+      }
     }
 
     function renderShelf() {
@@ -1623,43 +3128,106 @@
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
       shelfEmpty.style.display = currentMems.length ? "none" : "block";
-      shelfCurrent.innerHTML = currentMems
-        .map((m) => {
-          const loc = m.location
-            ? locationPath(m.location)
-            : m.person
-            ? formatPersonLoc(m)
-            : "—";
-          return `<li class="shelf-item">
-            <div class="top"><span>${objectEmoji(m.object)} ${escapeHtml(m.object)}</span><span class="meta">${escapeHtml(relativeTime(m.timestamp))}</span></div>
-            <div class="loc">${escapeHtml(loc)}</div>
-          </li>`;
+      if (statCount) statCount.textContent = String(currentMems.length);
+
+      const keep = new Set(currentMems.map((m) => m.id));
+      [...fragPhysics.keys()].forEach((id) => { if (!keep.has(id)) fragPhysics.delete(id); });
+      [...spatialById.keys()].forEach((id) => { if (!keep.has(id)) spatialById.delete(id); });
+
+      rebalanceLayers(currentMems);
+      const { w: stageW, h: stageH } = stageSize();
+
+      const visibleMems = fieldMemories(currentMems);
+      shelfCurrent.innerHTML = visibleMems
+        .map((m, i) => {
+          const sp = ensureSpatial(m.id);
+          if (sp.layer === "omit") return "";
+          const tone = fragTone(m);
+          const px = (sp.xPct / 100) * stageW;
+          const py = (sp.yPct / 100) * stageH;
+          const loc = fragmentStateLabel(m);
+          const hist = historyLines(m.object, m.id);
+          const isHit =
+            highlightedEntity &&
+            (objectsMatch(m.object, highlightedEntity) || String(m.object).includes(String(highlightedEntity)));
+          const dim = highlightedEntity && !isHit ? "dimmed" : "";
+          const hi = isHit ? "highlighted" : "";
+          const exp = expandedFragId === m.id ? "expanded" : "";
+          const entering = enteringIds.has(m.id) ? "entering" : "";
+          const pulsing = pulsingIds.has(m.id) ? "pulsing" : "";
+          const awaiting = awaitingLandIds.has(m.id) ? "awaiting-land" : "";
+          const depthMax = sp.depth === 1 ? 4 : sp.depth === 2 ? 10 : 16;
+          const parx = parallaxNX * depthMax;
+          const pary = parallaxNY * depthMax;
+          const layerName = sp.layer === "hero" ? "focus" : sp.layer === "normal" ? "floating" : (sp.layer || "floating");
+          const layerClass = `layer-${layerName}`;
+          return `<div class="frag size-${sp.size} ${tone} ${layerClass} ${dim} ${hi} ${exp} ${entering} ${pulsing} ${awaiting}"
+            data-id="${escapeHtml(m.id)}"
+            data-object="${escapeHtml(m.object)}"
+            data-depth="${sp.depth}"
+            data-layer="${layerName}"
+            style="--x:${px.toFixed(1)}px;--y:${py.toFixed(1)}px;--base-rot:${sp.rot.toFixed(2)}deg;--ox:${sp.ox.toFixed(1)}px;--oy:${sp.oy.toFixed(1)}px;--or:${sp.or.toFixed(2)}deg;--float-dur:${sp.dur.toFixed(2)}s;--float-delay:${sp.delay.toFixed(2)}s;--px:${parx.toFixed(2)}px;--py:${pary.toFixed(2)}px;--frag-scale:${(sp.fragScale == null ? 1 : sp.fragScale).toFixed(3)};--z:${sp.zVar != null ? sp.zVar : (layerName === "focus" ? 8 : layerName === "floating" ? 5 : 2)}">
+            <div class="frag-float">
+              <div class="frag-inner">
+                ${layerName === "focus" ? `<div class="card-top">
+                  <div class="cat">${escapeHtml(categoryLabel(m))}</div>
+                  <div class="menu">···</div>
+                </div>` : ""}
+                <div class="body">
+                  <div class="icon">${objectEmoji(m.object)}</div>
+                  <div class="copy">
+                    <div class="obj">${escapeHtml(m.object)}</div>
+                    ${layerName === "background" ? "" : `<div class="loc"><span class="pi">⌖</span><span>${escapeHtml(loc)}</span></div>`}
+                  </div>
+                </div>
+                ${layerName === "focus" ? `<div class="meta">${escapeHtml(relativeTime(m.timestamp) || "刚刚")}</div>` : ""}
+                <div class="detail">
+                  <div>${escapeHtml(m.object)} → ${escapeHtml(loc)}</div>
+                  <div style="margin-top:4px">${hist.length ? hist.join("<br/>") : "还没有历史变化。"}</div>
+                </div>
+              </div>
+            </div>
+          </div>`;
         })
         .join("");
-      shelfHistorySummary.textContent = `查看历史（${historyMems.length}）`;
+
+      qsAll(shelfCurrent, ".frag").forEach((el) => {
+        const p = fragPhysics.get(el.dataset && el.dataset.id);
+        if (p) { p.el = el; applyPhysicsStyles(p); }
+      });
+
+      const n = currentMems.length;
+      const histCountNum = document.getElementById("histCountNum");
+      if (histCountNum) histCountNum.textContent = String(n);
+      // Keep summary structure; only update list on open.
       shelfHistory.innerHTML = historyMems.length
-        ? historyMems
-            .map((m) => {
-              const loc = m.location
-                ? locationAnswer(m.location)
-                : m.person
-                ? formatPersonLoc(m)
-                : "";
-              return `<li class="hist-item">${escapeHtml(m.object)} → ${escapeHtml(loc)} · ${escapeHtml(relativeTime(m.timestamp))}</li>`;
-            })
-            .join("")
-        : `<li class="hist-item">暂无历史记录</li>`;
+        ? historyMems.map((m) => {
+            const loc = m.location
+              ? String(locationAnswer(m.location)).replace(/\s*>\s*/g, "")
+              : m.person ? formatPersonLoc(m) : "";
+            return `<li class="hist-item">${escapeHtml(m.object)} → ${escapeHtml(loc)} · ${escapeHtml(relativeTime(m.timestamp))}</li>`;
+          }).join("")
+        : `<li class="hist-item hist-empty">还没有历史变化。</li>`;
     }
 
-    function render() {
+    function highlightEntity(entity) {
+      highlightedEntity = entity || null;
       renderShelf();
+      if (!entity) return;
+      clearTimeout(highlightEntity._t);
+      highlightEntity._t = setTimeout(() => {
+        highlightedEntity = null;
+        renderShelf();
+      }, 2600);
     }
+
+    function render() { renderShelf(); }
 
     function runQuery(q) {
+      closeEphemeralPanel();
       appendUser(q);
       const retrieved = retrieve(q);
       const { answer, explain, evidence, isClarify } = composeQueryResponse(retrieved);
-      // 同一条输入只渲染一次：Clarify 走 clarifyCardHtml；否则走 Answer + Explain Trace。
       if (
         isClarify &&
         (!evidence ||
@@ -1671,45 +3239,39 @@
         appendAi(clarifyCardHtml(answer, explain));
       } else {
         appendAi(answerBlockHtml(answer, explain));
+        const ent =
+          (explain && explain.entity) ||
+          (retrieved.current && retrieved.current.object) ||
+          (retrieved.intent && retrieved.intent.object) ||
+          null;
+        if (ent) highlightEntity(ent);
       }
       render();
     }
 
     let submitting = false;
     let voiceDraftActive = false;
-
     const voiceDraft = document.getElementById("voiceDraft");
     const voiceRetryBtn = document.getElementById("voiceRetry");
     const voiceConfirmBtn = document.getElementById("voiceConfirm");
     const voiceCancelBtn = document.getElementById("voiceCancel");
     const btnSend = document.getElementById("btnSend");
+    const hookStatus = document.getElementById("hookStatus");
+    const hookFlyerRoot = document.getElementById("hookFlyerRoot");
 
     function setVoiceDraftActive(on) {
       voiceDraftActive = Boolean(on);
       if (voiceDraft) voiceDraft.classList.toggle("active", voiceDraftActive);
+      form.classList.toggle("expanded", voiceDraftActive || Boolean(input.value.trim()));
     }
-
-    function dismissVoiceDraft() {
-      setVoiceDraftActive(false);
-    }
-
+    function dismissVoiceDraft() { setVoiceDraftActive(false); }
     function cancelVoiceDraft() {
-      // 取消：清空草稿，不进入 Understanding，不写 Memory。
       input.value = "";
       dismissVoiceDraft();
       errorEl.textContent = "";
-      if (listening && recognition) {
-        try {
-          recognition.stop();
-        } catch (_e) {
-          /* ignore */
-        }
-      }
+      if (listening && recognition) { try { recognition.stop(); } catch (_e) {} }
     }
-
-    function getComposerText() {
-      return String(input.value || "").trim();
-    }
+    function getComposerText() { return String(input.value || "").trim(); }
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -1720,7 +3282,6 @@
         errorEl.textContent = "先说一句要记住的话，或问我一个问题。";
         return;
       }
-      // 键盘/文本发送与「确认发送」共用此路径；进入理解前先关闭语音草稿态。
       dismissVoiceDraft();
       submitting = true;
       try {
@@ -1729,8 +3290,10 @@
           runQuery(text);
           return;
         }
-
-        appendUser(text);
+        // Capture path: Memory Space is primary feedback — no chat column.
+        closeEphemeralPanel();
+        thread.innerHTML = "";
+        setHooking(true, "✦ Hooking memory...");
         const beforeState = JSON.parse(JSON.stringify(currentState || {}));
         const list = await understandMemories(text);
         list.forEach((memory) => memories.unshift(memory));
@@ -1740,15 +3303,19 @@
 
         const first = list[0];
         if (!first || first.uncertain || list.every((m) => m.uncertain || !m.object)) {
+          setHooking(false);
+          appendUser(text);
           appendAi(clarifyCardHtml(captureAsk(first && first.originalText)));
           render();
           return;
         }
 
-        let diffShown = false;
-        for (const m of list.filter((x) => x.object && !x.uncertain)) {
+        const valid = list.filter((x) => x.object && !x.uncertain);
+        let updated = [];
+        let created = [];
+        for (const m of valid) {
           const prev = findPrevStateSnapshot(m.object, beforeState);
-          if (!prev) continue;
+          if (!prev) { created.push(m); continue; }
           const prevLoc = prev.location ? locationAnswer(prev.location) : "";
           const nextLoc = m.location ? locationAnswer(m.location) : "";
           const locChanged = prevLoc && nextLoc && prevLoc !== nextLoc;
@@ -1756,20 +3323,35 @@
             (prev.person || "") !== (m.person || "") ||
             (prev.status || "") !== (m.status || "");
           const lendChanged = prev.status !== m.status || prev.person !== m.person;
-          if (locChanged || lendChanged || personChanged) {
-            appendAi(stateDiffHtml(prev, m));
-            diffShown = true;
-            break;
+          if (locChanged || lendChanged || personChanged) updated.push(m);
+          else created.push(m);
+        }
+
+        await wait(480);
+
+        if (updated.length) {
+          setHooking(true, "✦ Updating memory...");
+          await wait(280);
+          setHooking(false);
+          const ids = updated
+            .map((m) => resolveCurrentMemoryId(m.object, m.id))
+            .filter(Boolean);
+          markSpaceFeedback({ pulseIds: ids.length ? ids : updated.map((m) => m.id) });
+          highlightEntity(updated[0].object);
+        } else if (created.length) {
+          // Primary: Hook → Fragment → Fly → Land → Float
+          const lead = created[0];
+          await playHookFlyIn(lead);
+          setHooking(false);
+          for (const m of created.slice(1)) {
+            const id = resolveCurrentMemoryId(m.object, m.id);
+            markSpaceFeedback({ enterIds: [id] });
           }
+          highlightEntity(lead.object);
+        } else {
+          setHooking(false);
+          render();
         }
-        if (!diffShown) {
-          const cards = list
-            .filter((m) => m.object && !m.uncertain)
-            .map(memoryCardHtml)
-            .join("");
-          appendAi(`<div class="bubble">好的，我记住了。</div>${cards}`);
-        }
-        render();
       } finally {
         submitting = false;
       }
@@ -1785,7 +3367,6 @@
       form.requestSubmit();
     });
 
-    // Clarify 候选芯片：复用 Composer 发送，不另开 Memory 写入路径。
     thread.addEventListener("click", (e) => {
       const chip = e.target.closest(".clarify-chip");
       if (!chip) return;
@@ -1796,6 +3377,55 @@
       form.requestSubmit();
     });
 
+    shelfCurrent.addEventListener("click", (e) => {
+      const frag = e.target.closest(".frag");
+      if (!frag) return;
+      const id = frag.dataset.id;
+      expandedFragId = expandedFragId === id ? null : id;
+      renderShelf();
+    });
+
+    btnShake?.addEventListener("click", () => triggerMemoryRediscovery(1));
+
+    let dragStartX = null, dragStartT = 0;
+    memorySpace?.addEventListener("pointerdown", (e) => {
+      if (e.target.closest(".frag") || e.target.closest("button") || e.target.closest("summary")) return;
+      dragStartX = e.clientX;
+      dragStartT = Date.now();
+    });
+    memorySpace?.addEventListener("pointerup", (e) => {
+      if (dragStartX == null) return;
+      const dx = e.clientX - dragStartX;
+      const dt = Date.now() - dragStartT;
+      dragStartX = null;
+      if (dt < 420 && Math.abs(dx) > 70) triggerMemoryRediscovery(Math.min(1.4, Math.abs(dx) / 120));
+    });
+
+    let lastCompact = isCompactLayout();
+    if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+      window.addEventListener("resize", () => {
+        clearTimeout(window.__mhResize);
+        window.__mhResize = setTimeout(() => {
+          const compact = isCompactLayout();
+          if (compact !== lastCompact) {
+            lastCompact = compact;
+            spatialById.forEach((sp) => { sp.needsSlot = true; });
+          }
+          renderShelf();
+        }, 120);
+      });
+    }
+
+    // Greeting by local hour
+    if (greetTitle) {
+      const h = new Date().getHours();
+      const hello = h < 11 ? "早上好" : h < 18 ? "下午好" : "晚上好";
+      const sun = h < 18 ? "☀️" : "🌙";
+      greetTitle.textContent = `${hello}，Ziyi ${sun}`;
+    }
+
+    setupMotionUi();
+    setupPointerParallax();
     render();
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1804,23 +3434,15 @@
 
     function startListening() {
       if (!recognition) return;
-      try {
-        recognition.start();
-      } catch (err) {
-        errorEl.textContent = "无法开始录音：" + err.message;
-      }
+      try { recognition.start(); }
+      catch (err) { errorEl.textContent = "无法开始录音：" + err.message; }
     }
-
     function enterVoiceDraft(transcript) {
       input.value = transcript;
       setVoiceDraftActive(true);
       errorEl.textContent = "";
       input.focus();
-      try {
-        input.setSelectionRange(input.value.length, input.value.length);
-      } catch (_e) {
-        /* ignore */
-      }
+      try { input.setSelectionRange(input.value.length, input.value.length); } catch (_e) {}
     }
 
     if (!SpeechRecognition) {
@@ -1832,14 +3454,12 @@
       recognition.interimResults = true;
       recognition.continuous = false;
       recognition.maxAlternatives = 1;
-
       recognition.onstart = () => {
         listening = true;
         micBtn.classList.add("listening");
         micBtn.textContent = "…";
         errorEl.textContent = "";
       };
-
       recognition.onresult = (event) => {
         let transcript = "";
         let allFinal = true;
@@ -1849,10 +3469,8 @@
         }
         const text = transcript.trim();
         input.value = text;
-        // 语音只写入 Composer Draft，不自动提交 / 不进入 Memory Understanding。
         if (allFinal && text) enterVoiceDraft(text);
       };
-
       recognition.onerror = (event) => {
         const map = {
           "not-allowed": "没有麦克风权限，请在浏览器设置里允许。",
@@ -1862,56 +3480,36 @@
         };
         errorEl.textContent = map[event.error] || "语音识别失败：" + event.error;
       };
-
       recognition.onend = () => {
         listening = false;
         micBtn.classList.remove("listening");
         micBtn.textContent = "🎙";
       };
-
       micBtn.addEventListener("click", () => {
         if (!recognition) return;
-        if (listening) {
-          recognition.stop();
-          return;
-        }
+        if (listening) { recognition.stop(); return; }
         startListening();
       });
-
       voiceRetryBtn?.addEventListener("click", () => {
-        // 重新录音：不产生 Memory，清空草稿后再次识别。
         input.value = "";
         dismissVoiceDraft();
         errorEl.textContent = "";
-        if (listening && recognition) {
-          try {
-            recognition.stop();
-          } catch (_e) {
-            /* ignore */
-          }
-        }
+        if (listening && recognition) { try { recognition.stop(); } catch (_e) {} }
         setTimeout(() => startListening(), 120);
       });
-
-      voiceCancelBtn?.addEventListener("click", () => {
-        cancelVoiceDraft();
-      });
-
+      voiceCancelBtn?.addEventListener("click", () => cancelVoiceDraft());
       voiceConfirmBtn?.addEventListener("click", () => {
-        // 确认发送：以输入框当前（可编辑）文本作为最终输入。
         const text = getComposerText();
-        if (!text) {
-          errorEl.textContent = "请先确认或编辑识别结果。";
-          return;
-        }
+        if (!text) { errorEl.textContent = "请先确认或编辑识别结果。"; return; }
         form.requestSubmit();
       });
     }
 
-    // 用户手动清空输入时关闭草稿条；取消/重录不会写 Memory。
     input.addEventListener("input", () => {
+      form.classList.toggle("expanded", Boolean(input.value.trim()) || voiceDraftActive);
       if (voiceDraftActive && !input.value.trim()) dismissVoiceDraft();
     });
+
   </script>
 </body>
 </html>

@@ -1,0 +1,23 @@
+{
+  "name": "memory-hook",
+  "private": true,
+  "version": "1.7.0-mobile",
+  "description": "Memory Hook — personal memory space (Web + Capacitor)",
+  "scripts": {
+    "test": "node regression-tests.mjs",
+    "prepare:www": "node scripts/prepare-www.mjs",
+    "cap:sync": "npm run prepare:www && npx cap sync",
+    "cap:add:ios": "npm run prepare:www && npx cap add ios",
+    "cap:add:android": "npm run prepare:www && npx cap add android",
+    "cap:open:ios": "npx cap open ios",
+    "cap:open:android": "npx cap open android"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.6.8",
+    "@capacitor/core": "^7.6.8"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.6.8",
+    "@capacitor/ios": "^7.6.8"
+  }
+}

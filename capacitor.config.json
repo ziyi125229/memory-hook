@@ -1,0 +1,15 @@
+{
+  "appId": "com.memoryhook.app",
+  "appName": "Memory Hook",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "ios": {
+    "contentInset": "automatic",
+    "allowsLinkPreview": false
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

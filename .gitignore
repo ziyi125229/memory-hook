@@ -2,3 +2,11 @@
 .env
 .env.*
 .vercel
+node_modules/
+.idea/
+.vscode/
+ios/
+android/
+dist/
+www/
+*.log
